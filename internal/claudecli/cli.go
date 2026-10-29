@@ -32,6 +32,7 @@ type LaunchOpts struct {
 	PermissionMode string
 	IDE            bool
 	Prompt         string // empty: start idle and wait for the user
+	Resume         string // a session ID: continue that conversation in a copy under Name
 }
 
 // LaunchArgs builds the claude arguments for o.
@@ -48,6 +49,9 @@ func LaunchArgs(o LaunchOpts) []string {
 	}
 	if o.IDE {
 		args = append(args, "--ide")
+	}
+	if o.Resume != "" {
+		args = append(args, "--resume", o.Resume)
 	}
 	if p := o.Prompt; p != "" {
 		// A leading "-" would be read as a flag; a leading space keeps it a prompt.

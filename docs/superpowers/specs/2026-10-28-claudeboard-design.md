@@ -49,8 +49,10 @@ Verified on 2026-10-28 against Claude Code 2.1.312. Everything claudeboard assum
 | Stop | `claude stop <shortId>` | Keeps the conversation and worktree |
 | Delete | `claude rm <shortId>` | Deletes the session and its worktree; may print a message about a retained worktree or unpushed commits, which the board shows verbatim |
 | Resume | `claude --bg --resume <sessionId>`, run in the session's directory | On a stopped session: prints `note: woke session <shortId> …` then the usual `backgrounded · <shortId> · <name>` line, keeping the same IDs. On a running session it starts a copy instead (`backgrounded · <newShortId>`, with no name), so claudeboard only resumes stopped sessions |
+| Continue elsewhere | `claude --bg --name <name> --resume <sessionId>`, run in the session's directory | Verified 2026-10-29. For a session open in an interactive terminal: starts a background copy with a new ID under `<name>`, carrying the conversation, and prints `note: session <id> is open in another Claude Code process, so this started a copy as <shortId>. The original conversation is unchanged.` For a background session, passing any option (such as `--name`) also starts a copy, because a background session keeps its own saved options; so claudeboard never uses this on background sessions |
 
 - `--bg` ignores `--session-id`. The full session ID is found by matching the short ID in the list.
+- Claude can't rename a session, and an interactive session drops out of `claude agents --json --all` once its terminal closes.
 - `--worktree <wt>` creates `<repo>/.claude/worktrees/<wt>` on branch `worktree-<wt>`. The session's reported `cwd` becomes the worktree path.
 
 List entries: `{pid, id, cwd, kind, sessionId, name, status, state, waitingFor}`. `id` is the short ID. `kind` is `"background"` or `"interactive"`; interactive entries carry `status` (`busy`/`idle`) but no `state` or `id`. A stopped background session is listed as `state: "stopped"` with no `pid` or `status`. A session that failed to start is listed as `state: "failed"`. Right after a launch, an entry can briefly appear with no `pid` yet, so a missing `pid` does not mean stopped.
@@ -105,7 +107,7 @@ internal/
 **claudecli.** Pure parsing functions (`ParseAgents([]byte)`, `ParseLaunch(string)`) plus thin wrappers that run `claude` with the cleaned environment: `List`, `Launch`, `Stop`, `Remove`, `Resume` and `AttachCmd`. `AttachCmd` returns an `*exec.Cmd` for the board to hand the terminal to. Every call has a timeout (5 s for list/stop/rm, 15 s for launch/resume).
 
 **transcript.** A `Reader` per session holds the main and subagent file paths and a byte offset per file. `Update()` reads only appended bytes, keeps an incomplete trailing line until it is finished, and starts over if a file shrinks. It produces a `Snapshot`:
-- the last 200 preview items, each a prompt ("you"), text ("claude") or tool call
+- the last 200 preview items, each a prompt ("you"), text ("claude") or tool call (the tool's name and its most telling argument; for Bash, Claude's own description of the command). Calls Claude makes to manage itself, such as `ToolSearch`, are left out
 - the pending tool call: the last `tool_use` with no matching `tool_result`
 - token totals split into input, output, cache read and cache write
 - the first prompt
@@ -181,8 +183,8 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
 │ ▸ ! web  hook PaymentForm… 12k │ ! needs you — permission prompt: Bash npm t… │
 │ q4-search                  12k │                                              │
 │   ✓ api  plan the search…  12k │ you: hook PaymentForm into checkout          │
-│ quick                        0 │ • Edit CheckoutPage.vue                      │
-│   ○ scratch  new session       │ • Bash npm test                              │
+│ quick                        0 │   › Edit  CheckoutPage.vue                   │
+│   ○ scratch  new session       │   › Bash  npm test                           │
 │ Other sessions                 │ claude: Wired it in. Running the tests…      │
 │   ● arbybot-8d                 │                                              │
 ├────────────────────────────────┴──────────────────────────────────────────────┤
@@ -197,7 +199,7 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
   - **Workflow rows** show the name, a `!` when any of its sessions needs the user, and the workflow's token total.
   - **Session rows** show the status icon, repo, label and tokens. The label is the first ~40 characters of the first prompt, or `new session`.
   - **Order never changes because of status,** so rows don't move under the cursor.
-- **Right pane (preview):** the session name, repo (and worktree), token total and breakdown, and subagent count. If the session needs the user, it then shows what it is waiting on, including the pending tool call. Below that are the most recent preview items, following new output. PgUp/PgDn scroll.
+- **Right pane (preview):** the session name, repo (and worktree), token total and breakdown, and subagent count. If the session needs the user, it then shows what it is waiting on, including the pending tool call. Below that are the most recent preview items, following new output. PgUp/PgDn scroll. Prompts and replies are labelled in colour, with wrapped lines indented under the label; replies get light markdown (bold, inline code, headings, bullets, code blocks). Each tool call is one dimmed line (`› Bash  Run the tests`), a run of identical calls is shown once with a count, and the waiting-on line shows the command itself, since that is what a permission prompt asks about.
 - **Narrow terminals:** below 90 columns the preview is hidden by default; `p` toggles it.
 - **Token format:** `950`, `41k`, `1.24M`.
 
@@ -213,20 +215,26 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
 | x | stop session (keeps conversation and worktree) |
 | r | resume a stopped session |
 | D | delete session and worktree, after a `y/N` confirmation |
+| m | move an Other session into a workflow (see below) |
 | a | archive / unarchive the selected workflow (hides it; does not stop its sessions) |
 | A | show / hide archived workflows |
 | p | show / hide preview |
 | PgUp / PgDn | scroll preview |
+| Ctrl+L | redraw the screen |
 | ? | help |
 | q | quit (sessions keep running) |
 
 `x` and `D` work on any background session, including ones in "Other sessions". `r` applies only to claudeboard's own sessions. On an interactive session, all three show "started in another terminal; switch to it there".
 
 Enter on a session:
-- **Running claudeboard session:** opens it with `claude attach`. Ctrl+Z inside the session returns to the board, with the same row selected and the data refreshed.
+- **Running claudeboard session:** opens it with `claude attach`. Ctrl+Z inside the session returns to the board, with the same row selected and the data refreshed. Before the board takes the terminal back it turns off the modes `claude attach` uses that the board doesn't set again itself (synchronized output, mouse, focus and colour-scheme reporting, scroll region, attributes, character set), in case attach didn't exit cleanly. The same applies after the trust-prompt `claude`.
 - **Stopped claudeboard session:** resumes it, then opens it.
 - **Other background session:** opens it.
-- **Other interactive session:** shows "started in another terminal; switch to it there".
+- **Other interactive session:** says it runs in another terminal, and that `m` continues it here.
+
+`m` on an Other session opens the workflow picker (including "+ new workflow…"), then:
+- **Interactive session:** claudeboard starts `claude --bg --resume <sessionId> --name cb-<slug>-<n>` in its folder, records the copy in the workflow and opens it. The original stays open in its terminal until the user closes it; the footer says so. A session with no conversation yet has nothing to continue, so `m` says that instead.
+- **Background session:** recorded in the workflow as it is, keeping its ID and name (or its short ID if it has no name). Nothing is restarted.
 
 ### New session (`n`)
 

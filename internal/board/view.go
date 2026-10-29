@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Harris-Ferguson/claudeboard/internal/status"
-	"github.com/Harris-Ferguson/claudeboard/internal/transcript"
 )
 
 var (
@@ -198,6 +197,9 @@ func (m Model) panelLines(width, height int) []string {
 	case modeHelp:
 		return helpLines()
 	case modePickWorkflow:
+		if m.flow.move != nil {
+			return m.pickerLines("Move " + m.flow.move.Name() + " into: pick a workflow")
+		}
 		return m.pickerLines("New session: pick a workflow")
 	case modePickRepo:
 		return m.pickerLines("New " + m.flow.req.Workflow + " session: pick a folder")
@@ -234,12 +236,12 @@ func helpLines() []string {
 		{"tab", "next session that needs you"},
 		{"n", "new session"},
 		{"s", "quick one-off in the scratch folder"},
-		{"x", "stop (keeps conversation, worktree)"},
-		{"r", "resume a stopped session"},
+		{"x / r", "stop / resume (keeps the conversation)"},
 		{"D", "delete session and its worktree"},
+		{"m", "move an Other session into a workflow"},
 		{"a / A", "archive workflow / show archived"},
-		{"p", "show or hide the preview"},
-		{"pgup pgdn", "scroll the preview"},
+		{"p", "preview on/off · pgup pgdn scroll"},
+		{"ctrl+l", "redraw the screen"},
 		{"q", "quit (sessions keep running)"},
 	}
 	lines := []string{" " + styleBold.Render("Keys"), ""}
@@ -278,15 +280,16 @@ func (m Model) previewLines(r Row, width, height int) []string {
 	if p := r.Snap.Pending; p != "" && (r.Status.Kind == status.NeedsYou || r.Status.Kind == status.Working) {
 		state += ": " + p
 	}
+	if r.Kind == RowOther {
+		state += styleFaint.Render(" · m moves it into a workflow")
+	}
 	head := []string{title, styleFaint.Render(usage), state, ""}
 
 	var body []string
 	if !r.Snap.Found {
 		body = []string{styleFaint.Render(" no messages yet")}
 	}
-	for _, it := range r.Snap.Items {
-		body = append(body, itemLines(it, width-2)...)
-	}
+	body = append(body, bodyLines(r.Snap.Items, width-1)...)
 	avail := height - len(head)
 	if avail <= 0 {
 		return head[:max(0, height)]
@@ -305,27 +308,4 @@ func (m Model) workflowLines(r Row) []string {
 		lines = append(lines, " last folder: "+repoLabel(r.Workflow.LastRepo))
 	}
 	return append(lines, "", styleFaint.Render(" enter fold/unfold · n new session here · a archive"))
-}
-
-// itemLines wraps one preview item to width, capped at maxItemLines lines.
-func itemLines(it transcript.Item, width int) []string {
-	prefix := "• "
-	switch it.Kind {
-	case transcript.ItemPrompt:
-		prefix = "you: "
-	case transcript.ItemText:
-		prefix = "claude: "
-	}
-	text := clean(it.Text)
-	if it.Kind == transcript.ItemTool {
-		text = firstLine(text)
-	}
-	wrapped := strings.Split(ansi.Wrap(prefix+text, max(10, width), ""), "\n")
-	if len(wrapped) > maxItemLines {
-		wrapped = append(wrapped[:maxItemLines-1], "…")
-	}
-	for i, l := range wrapped {
-		wrapped[i] = " " + l
-	}
-	return wrapped
 }

@@ -206,6 +206,8 @@ func (m Model) listKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.previewScroll = max(0, m.previewScroll-page)
 	case "?":
 		m.mode = modeHelp
+	case "ctrl+l":
+		return m, tea.ClearScreen
 	default:
 		return m.commandKey(k)
 	}

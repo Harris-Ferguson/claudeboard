@@ -15,6 +15,8 @@ func (m Model) commandKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.askDelete()
 	case "a":
 		return m.toggleArchive()
+	case "m":
+		return m.startMove()
 	case "n":
 		return m.startNew()
 	case "s":

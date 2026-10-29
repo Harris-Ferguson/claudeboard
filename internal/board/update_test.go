@@ -31,6 +31,8 @@ func key(s string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeyPgDown}
 	case "ctrl+c":
 		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
+	case "ctrl+l":
+		return tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl}
 	}
 	return tea.KeyPressMsg{Code: []rune(s)[0], Text: s}
 }

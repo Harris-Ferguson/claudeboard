@@ -14,8 +14,8 @@ running when you quit the board.
 │ ▸ ! web  hook PaymentForm… 12k │ ! needs you — permission prompt: Bash npm t… │
 │ q4-search                  12k │                                              │
 │   ✓ api  plan the search…  12k │ you: hook PaymentForm into checkout          │
-│ quick                          │ • Edit CheckoutPage.vue                      │
-│   ○ scratch  new session       │ • Bash npm test                              │
+│ quick                          │   › Edit  CheckoutPage.vue                   │
+│   ○ scratch  new session       │   › Bash  npm test                           │
 │ Other sessions                 │ claude: Wired it in. Running the tests…      │
 │   ● arbybot-8d                 │                                              │
 ├────────────────────────────────┴──────────────────────────────────────────────┤
@@ -61,9 +61,11 @@ Run `claudeboard`.
 | x | stop the session (keeps its conversation and worktree) |
 | r | resume a stopped session in the background |
 | D | delete the session and its worktree (asks first) |
+| m | move a session from "Other sessions" into a workflow. One open in another terminal is continued in a background copy (`claude --bg --resume`), which opens straight away; close the original afterwards. A background session is added as it is |
 | a / A | archive a workflow / show archived workflows |
 | p | show or hide the preview (hidden by default below 90 columns) |
 | PgUp / PgDn | scroll the preview |
+| Ctrl+L | redraw the screen |
 | ? | help |
 | q | quit; sessions keep running |
 
@@ -148,6 +150,11 @@ ide = false           # pass --ide so diffs open in your IDE
 - **A session shows "no messages yet" after you've talked to it**: was it started from
   inside another Claude session's shell? claudeboard removes the variables that turn
   off conversation saving, but sessions started some other way may not have saved.
+- **The board looks wrong after coming back from a session**: press Ctrl+L to redraw
+  it. claudeboard also resets the terminal modes `claude attach` uses (mouse and focus
+  reporting, synchronized output, scroll region, colours) before it takes the screen
+  back, so this shouldn't be needed; if it is, please open an issue saying which terminal
+  you use.
 
 ## How it works
 
