@@ -1,12 +1,16 @@
 package board
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/Harris-Ferguson/claudeboard/internal/launch"
 	"github.com/Harris-Ferguson/claudeboard/internal/transcript"
 )
 
@@ -175,6 +179,37 @@ func TestSessionsFirstSeenStartOutRead(t *testing.T) {
 	if st, _, _ := m.deps.Store.Load(); st.Seen["id-3"] != 3 {
 		t.Errorf("saved seen = %v", st.Seen)
 	}
+}
+
+func TestSessionStartedWhileTheBoardWasClosedShowsItsResultAsUnread(t *testing.T) {
+	m, src := unreadModel(t, 100, map[string]int{"id-1": 5, "id-2": 5, "id-3": 3})
+	// claudeboard new -w bugs "fix the flaky test", which finishes before the board
+	// first sees it.
+	sess, err := launch.Run(context.Background(), src, m.deps.Store, m.deps.Cfg,
+		launch.Request{Workflow: "bugs", Dir: "/work/api", Repo: "api", Prompt: "fix the flaky test"}, testNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src.live[len(src.live)-1].State = "done"
+	dir := filepath.Join(m.deps.ProjectsDir, "-work-api")
+	lines := `{"type":"user","message":{"role":"user","content":"fix the flaky test"}}` + "\n" +
+		`{"type":"assistant","message":{"id":"m1","content":[{"type":"text","text":"Fixed it."}]}}` + "\n"
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, sess.SessionID+".jsonl"), []byte(lines), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, _ = send(m, doRefresh(m.deps, nil))
+	for _, r := range m.rows {
+		if r.Session.Name == sess.Name {
+			if !r.Unread {
+				t.Errorf("%s isn't unread (seen %d); you haven't seen its result", sess.Name, m.state.Seen[sess.SessionID])
+			}
+			return
+		}
+	}
+	t.Fatalf("no row for %s", sess.Name)
 }
 
 func TestSessionsInFoldedAndArchivedWorkflowsAreTracked(t *testing.T) {

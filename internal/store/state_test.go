@@ -99,6 +99,27 @@ func TestRelink(t *testing.T) {
 	}
 }
 
+func TestRelinkStartsTheSessionsItLinksUnseen(t *testing.T) {
+	st := State{
+		Workflows: []Workflow{{Slug: "w", Name: "w"}},
+		Sessions:  []Session{{Name: "cb-w-2", Workflow: "w"}}, // launched, but its ID was never resolved
+		Seen:      map[string]int{"id-4": 7},
+	}
+	st.Relink([]Listed{
+		{SessionID: "id-2", ShortID: "s2", Name: "cb-w-2"},
+		{SessionID: "id-3", ShortID: "s3", Name: "cb-bugs-1"},
+		{SessionID: "id-4", ShortID: "s4", Name: "cb-bugs-2"}, // already has a record
+	}, now)
+	for _, id := range []string{"id-2", "id-3"} {
+		if seen, ok := st.Seen[id]; !ok || seen != 0 {
+			t.Errorf("%s: seen = %v; claudeboard's own sessions start with nothing seen", id, st.Seen)
+		}
+	}
+	if st.Seen["id-4"] != 7 {
+		t.Errorf("id-4: seen = %d, want the record it had (7) kept", st.Seen["id-4"])
+	}
+}
+
 func TestWorkDirPrefersTheFolderClaudeReports(t *testing.T) {
 	s := Session{Dir: "/r/sub", Worktree: "w-2", Cwd: "/r/.claude/worktrees/w-2"}
 	if got := s.WorkDir(); got != "/r/.claude/worktrees/w-2" {

@@ -18,6 +18,7 @@ import (
 	"github.com/Harris-Ferguson/claudeboard/internal/config"
 	"github.com/Harris-Ferguson/claudeboard/internal/launch"
 	"github.com/Harris-Ferguson/claudeboard/internal/store"
+	"github.com/Harris-Ferguson/claudeboard/internal/transcript"
 )
 
 const newUsage = `usage: claudeboard new [-w workflow] [-r repo|path] [--worktree] [prompt…]
@@ -107,6 +108,7 @@ func runNew(args []string, stdout, stderr io.Writer) int {
 	return newSession(a, newEnv{
 		cli:      claudecli.New(),
 		home:     home,
+		projects: transcript.ProjectsDir(),
 		cwd:      cwd,
 		stdin:    os.Stdin,
 		terminal: term.IsTerminal(os.Stdin.Fd()) && term.IsTerminal(os.Stdout.Fd()),
@@ -126,6 +128,7 @@ type newCLI interface {
 type newEnv struct {
 	cli      newCLI
 	home     string
+	projects string // where Claude Code keeps transcripts
 	cwd      string
 	stdin    io.Reader // where answers to questions come from
 	terminal bool      // stdin and stdout are a terminal, so a session can open here
@@ -180,8 +183,27 @@ func newSession(a newArgs, env newEnv, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "claudeboard: %s: %v\n%s is still running; try %s\n", reopen, err, sess.Name, reopen)
 		return 1
 	}
+	if err := recordSeen(env, sess.SessionID); err != nil {
+		fmt.Fprintf(stderr, "claudeboard: saving what you've seen: %v\n", err)
+	}
 	fmt.Fprintf(stdout, "%s is still running. Back to it: %s (or open claudeboard)\n", sess.Name, reopen)
 	return 0
+}
+
+// recordSeen notes how much of the session the user has just seen in it, so the board
+// doesn't show it as unread.
+func recordSeen(env newEnv, sessionID string) error {
+	if sessionID == "" {
+		return nil
+	}
+	snap, err := transcript.NewReader(env.projects, sessionID).Update()
+	if err != nil {
+		return err
+	}
+	return store.Open(env.home).Update(func(s *store.State) error {
+		s.MarkSeen(sessionID, snap.Activity)
+		return nil
+	})
 }
 
 // runAttached runs an interactive claude command in this terminal.

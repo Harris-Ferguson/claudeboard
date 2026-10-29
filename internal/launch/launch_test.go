@@ -55,6 +55,18 @@ func TestRunRecordsSession(t *testing.T) {
 	}
 }
 
+func TestRunStartsTheSessionUnseen(t *testing.T) {
+	st := store.Open(t.TempDir())
+	sess, err := Run(context.Background(), &stubLauncher{}, st, config.Config{}, Request{Workflow: "bugs", Dir: "/r", Prompt: "fix it"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, _, _ := st.Load()
+	if seen, ok := state.Seen[sess.SessionID]; !ok || seen != 0 {
+		t.Errorf("seen = %v; nothing of a new session has been seen, so its first result shows as unread", state.Seen)
+	}
+}
+
 func TestRunNumbersSessionsAndAddsWorktrees(t *testing.T) {
 	l, st := &stubLauncher{}, store.Open(t.TempDir())
 	ctx := context.Background()

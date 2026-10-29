@@ -6,12 +6,15 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/Harris-Ferguson/claudeboard/internal/claudecli"
+	"github.com/Harris-Ferguson/claudeboard/internal/store"
 )
 
 func TestParseNewArgs(t *testing.T) {
@@ -101,7 +104,7 @@ func (s *stubCLI) TrustCmd(dir string) *exec.Cmd {
 
 func testEnv(t *testing.T, cli *stubCLI, terminal bool, answers string) newEnv {
 	t.Helper()
-	return newEnv{cli: cli, home: t.TempDir(), cwd: t.TempDir(), stdin: strings.NewReader(answers),
+	return newEnv{cli: cli, home: t.TempDir(), projects: t.TempDir(), cwd: t.TempDir(), stdin: strings.NewReader(answers),
 		terminal: terminal, now: func() time.Time { return time.Date(2026, 10, 29, 9, 0, 0, 0, time.UTC) }}
 }
 
@@ -121,6 +124,27 @@ func TestNewOpensSessionAndSaysHowToGetBack(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("stdout is missing %q:\n%s", want, out)
 		}
+	}
+}
+
+func TestNewRecordsWhatYouSawWhenYouComeBack(t *testing.T) {
+	cli := &stubCLI{}
+	env := testEnv(t, cli, true, "")
+	// What Claude wrote while the session was open: two records of its own.
+	dir := filepath.Join(env.projects, "-work")
+	lines := `{"type":"user","message":{"role":"user","content":"fix it"}}` + "\n" +
+		`{"type":"assistant","message":{"id":"m1","content":[{"type":"text","text":"Looking."}]}}` + "\n" +
+		`{"type":"assistant","message":{"id":"m2","content":[{"type":"text","text":"Fixed."}]}}` + "\n"
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sess-abcd0001.jsonl"), []byte(lines), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, _, errOut := runSession(newArgs{}, env)
+	st, _, _ := store.Open(env.home).Load()
+	if code != 0 || st.Seen["sess-abcd0001"] != 2 {
+		t.Errorf("code %d, seen %v, stderr %q; what you saw in the session shouldn't show as unread", code, st.Seen, errOut)
 	}
 }
 
