@@ -2,6 +2,7 @@ package board
 
 import (
 	"math/rand/v2"
+	"path/filepath"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -46,7 +47,7 @@ func (m Model) selectedDir() string {
 	case !ok:
 	case r.Kind == RowSession && r.Session.Dir != "":
 		return r.Session.Dir
-	case r.Kind == RowWorkflow && r.Workflow.LastRepo != "":
+	case r.Kind == RowWorkflow && m.repoDir(r.Workflow.LastRepo) != "":
 		return m.repoDir(r.Workflow.LastRepo)
 	case r.Kind == RowOther && r.Live.Cwd != "":
 		return r.Live.Cwd
@@ -55,7 +56,7 @@ func (m Model) selectedDir() string {
 }
 
 // repoDir turns a workflow's last repo (a configured repo's name, "scratch", or a
-// folder) back into its folder.
+// folder) back into its folder. It's "" for a repo name no longer in the config.
 func (m Model) repoDir(repo string) string {
 	cfg := m.deps.Cfg
 	switch {
@@ -63,8 +64,10 @@ func (m Model) repoDir(repo string) string {
 		return cfg.Repos[repo]
 	case repo == "scratch":
 		return cfg.ScratchDir
+	case filepath.IsAbs(repo):
+		return repo
 	}
-	return repo
+	return ""
 }
 
 // quickNew starts a session in a new workflow with a random name, in the selected

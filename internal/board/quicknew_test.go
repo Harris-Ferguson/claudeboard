@@ -72,10 +72,41 @@ func TestQuickNewSessionFolder(t *testing.T) {
 	if got := m.selectedDir(); got != "/work/api" {
 		t.Errorf("workflow row: %q, want its last folder", got)
 	}
+	for last, want := range map[string]string{
+		"web":            "/work/web",
+		"scratch":        "/home/.claudeboard/scratch",
+		"/src/elsewhere": "/src/elsewhere",
+		"old-api":        "/work", // a repo since removed from the config
+	} {
+		m.state.Workflows[1].LastRepo = last
+		m.rebuild()
+		if got := m.selectedDir(); got != want {
+			t.Errorf("workflow last used in %q: %q, want %q", last, got, want)
+		}
+	}
 	m.state, m.live = store.State{}, nil
 	m.rebuild()
 	if got := m.selectedDir(); got != "/work" {
 		t.Errorf("empty board: %q, want the folder claudeboard started in", got)
+	}
+}
+
+func TestQuickNewSessionForAWorkflowWhoseRepoIsGoneStartsInTheBoardsFolder(t *testing.T) {
+	m, src := testModel(t, 100, 16)
+	m.deps.NewName = names("amber-otter")
+	m.state.Workflows[1].LastRepo = "old-api" // no longer in config.toml
+	m.rebuild()
+	m = cursorTo(t, m, "w:q4-search")
+	_, cmd := press(t, m, "N")
+	if cmd == nil {
+		t.Fatal("N did nothing")
+	}
+	cmd()
+	if len(src.launched) != 1 || src.launched[0].Dir != "/work" {
+		t.Errorf("launched %+v, want it in /work, the folder claudeboard started in", src.launched)
+	}
+	if st, _, _ := m.deps.Store.Load(); st.Workflow("amber-otter") == nil || st.Workflow("amber-otter").LastRepo != "/work" {
+		t.Errorf("recorded workflow %+v, want last_repo /work", st.Workflow("amber-otter"))
 	}
 }
 
