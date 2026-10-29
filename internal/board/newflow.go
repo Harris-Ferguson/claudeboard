@@ -188,7 +188,7 @@ func (m Model) answerTrust(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	req := m.flow.req
 	m.flow.trusting = true
-	return m, tea.ExecProcess(m.deps.Src.TrustCmd(req.Dir), func(error) tea.Msg { return trustDoneMsg{req: req} })
+	return m, tea.Exec(inTerminal(m.deps.Src.TrustCmd(req.Dir)), func(error) tea.Msg { return trustDoneMsg{req: req} })
 }
 
 // launchCmd starts the session in the background; launchedMsg reports back.

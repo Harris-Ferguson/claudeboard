@@ -57,7 +57,7 @@ func (m Model) attach(shortID string) tea.Cmd {
 	if shortID == "" {
 		return nil
 	}
-	return tea.ExecProcess(m.deps.Src.AttachCmd(shortID), func(err error) tea.Msg { return attachDoneMsg{err: err} })
+	return tea.Exec(inTerminal(m.deps.Src.AttachCmd(shortID)), func(err error) tea.Msg { return attachDoneMsg{err: err} })
 }
 
 func (m Model) enter() (tea.Model, tea.Cmd) {

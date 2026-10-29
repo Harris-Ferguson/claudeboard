@@ -216,13 +216,14 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
 | A | show / hide archived workflows |
 | p | show / hide preview |
 | PgUp / PgDn | scroll preview |
+| Ctrl+L | redraw the screen |
 | ? | help |
 | q | quit (sessions keep running) |
 
 `x` and `D` work on any background session, including ones in "Other sessions". `r` applies only to claudeboard's own sessions. On an interactive session, all three show "started in another terminal; switch to it there".
 
 Enter on a session:
-- **Running claudeboard session:** opens it with `claude attach`. Ctrl+Z inside the session returns to the board, with the same row selected and the data refreshed.
+- **Running claudeboard session:** opens it with `claude attach`. Ctrl+Z inside the session returns to the board, with the same row selected and the data refreshed. Before the board takes the terminal back it turns off the modes `claude attach` uses that the board doesn't set again itself (synchronized output, mouse, focus and colour-scheme reporting, scroll region, attributes, character set), in case attach didn't exit cleanly. The same applies after the trust-prompt `claude`.
 - **Stopped claudeboard session:** resumes it, then opens it.
 - **Other background session:** opens it.
 - **Other interactive session:** shows "started in another terminal; switch to it there".
