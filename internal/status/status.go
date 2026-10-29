@@ -37,6 +37,13 @@ func From(live *claudecli.Session, promptSent bool) Status {
 	}
 	switch live.State {
 	case "working":
+		// A resumed session reports "working" while it sits idle at its prompt.
+		if live.Status == "idle" {
+			if promptSent {
+				return Status{Kind: Done}
+			}
+			return Status{Kind: New}
+		}
 		return Status{Kind: Working}
 	case "done":
 		return Status{Kind: Done}
@@ -64,8 +71,10 @@ func (s Status) Icon() string {
 		return "!"
 	case Done:
 		return "✓"
-	case New, Stopped:
+	case New:
 		return "○"
+	case Stopped:
+		return "◌"
 	}
 	return "?"
 }

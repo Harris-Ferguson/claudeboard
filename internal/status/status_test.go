@@ -25,6 +25,8 @@ func TestFrom(t *testing.T) {
 		{"done", bg("done", ""), true, Status{Kind: Done}},
 		{"stopped", bg("stopped", ""), true, Status{Kind: Stopped}},
 		{"failed", bg("failed", ""), false, Status{Kind: Unknown, Detail: "failed"}},
+		{"resumed, idle, never prompted", &claudecli.Session{Kind: claudecli.KindBackground, State: "working", Status: "idle"}, false, Status{Kind: New}},
+		{"resumed, idle, prompted before", &claudecli.Session{Kind: claudecli.KindBackground, State: "working", Status: "idle"}, true, Status{Kind: Done}},
 		{"interactive busy", &claudecli.Session{Kind: claudecli.KindInteractive, Status: "busy"}, true, Status{Kind: Working}},
 		{"interactive idle", &claudecli.Session{Kind: claudecli.KindInteractive, Status: "idle"}, true, Status{Kind: Done}},
 	}
@@ -45,7 +47,7 @@ func TestIconAndText(t *testing.T) {
 		{Status{Kind: NeedsYou}, "!", "needs you"},
 		{Status{Kind: Done}, "✓", "done"},
 		{Status{Kind: New}, "○", "new"},
-		{Status{Kind: Stopped}, "○", "stopped"},
+		{Status{Kind: Stopped}, "◌", "stopped"},
 		{Status{Kind: Unknown, Detail: "failed"}, "?", "failed"},
 		{Status{Kind: Unknown}, "?", "unknown"},
 	}

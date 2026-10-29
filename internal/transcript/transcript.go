@@ -28,6 +28,10 @@ type Usage struct {
 // Total adds up every token type.
 func (u Usage) Total() int64 { return u.Input + u.Output + u.CacheRead + u.CacheWrite }
 
+// Fresh is the tokens a session actually added: everything except cache reads, which
+// re-count the same context on every turn and so dwarf the rest (often 95%+).
+func (u Usage) Fresh() int64 { return u.Input + u.Output + u.CacheWrite }
+
 func (u Usage) plus(v Usage) Usage {
 	return Usage{u.Input + v.Input, u.Output + v.Output, u.CacheRead + v.CacheRead, u.CacheWrite + v.CacheWrite}
 }

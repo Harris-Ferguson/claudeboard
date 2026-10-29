@@ -1,6 +1,6 @@
 ┌ claudeboard · 1 working · 1 needs you · 65k tokens ──────────────────────────────────────────────┐
 │  payments-v2  !                     53k│ cb-payments-v2-2 · web · 12k tokens                     │
-│    ● api  wire the new AfterPay bu… 41k│ in 1.2k · out 8.4k · cache r 2.1k · w 300               │
+│    ● api  wire the new AfterPay bu… 41k│ in 1.2k · out 8.4k · cache r 2.1k · w 2.4k              │
 │  ▸ ! web  hook PaymentForm into ch… 12k│ ! needs you — permission prompt: Bash npm test          │
 │  q4-search                          12k│                                                         │
 │    ✓ api  plan the search rewrite   12k│ you: hook PaymentForm into checkout                     │

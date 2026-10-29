@@ -7,7 +7,8 @@ import (
 )
 
 // fixture is three workflows and an interactive session started elsewhere, matching
-// the mockup in the spec. Totals: payments-v2 53k, q4-search 12k, everything 65k.
+// the mockup in the spec. Totals (cache reads left out): payments-v2 53k, q4-search 12k,
+// everything 65k.
 func fixture() (store.State, []claudecli.Session, map[string]transcript.Snapshot) {
 	st := store.State{
 		Version: 1,
@@ -32,9 +33,9 @@ func fixture() (store.State, []claudecli.Session, map[string]transcript.Snapshot
 	}
 	snaps := map[string]transcript.Snapshot{
 		"id-1": {Found: true, FirstPrompt: "wire the new AfterPay button into checkout", Prompts: 1,
-			Usage: transcript.Usage{Input: 1000, Output: 5000, CacheRead: 35000}},
+			Usage: transcript.Usage{Input: 1000, Output: 5000, CacheWrite: 35000, CacheRead: 400000}},
 		"id-2": {Found: true, FirstPrompt: "hook PaymentForm into checkout", Prompts: 1, Pending: "Bash npm test",
-			Usage: transcript.Usage{Input: 1200, Output: 8400, CacheRead: 2100, CacheWrite: 300},
+			Usage: transcript.Usage{Input: 1200, Output: 8400, CacheRead: 2100, CacheWrite: 2400},
 			Items: []transcript.Item{
 				{Kind: transcript.ItemPrompt, Text: "hook PaymentForm into checkout"},
 				{Kind: transcript.ItemTool, Text: "Edit CheckoutPage.vue"},
@@ -42,7 +43,7 @@ func fixture() (store.State, []claudecli.Session, map[string]transcript.Snapshot
 				{Kind: transcript.ItemText, Text: "Wired it in. Running the tests to check checkout still works."},
 			}},
 		"id-3": {Found: true, FirstPrompt: "plan the search rewrite", Prompts: 1,
-			Usage: transcript.Usage{Output: 2000, CacheRead: 10000}},
+			Usage: transcript.Usage{Output: 2000, CacheWrite: 10000, CacheRead: 90000}},
 		"id-4": {},
 	}
 	return st, live, snaps

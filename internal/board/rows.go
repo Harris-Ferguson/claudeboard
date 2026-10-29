@@ -25,7 +25,7 @@ type Row struct {
 	Live      *claudecli.Session // what Claude lists; nil when it doesn't list the session
 	Snap      transcript.Snapshot
 	Status    status.Status
-	Tokens    int64  // the session's total, or the workflow's
+	Tokens    int64  // fresh tokens (cache reads left out): the session's, or the workflow's
 	Stats     Counts // RowWorkflow: its sessions
 	Sessions  int    // RowWorkflow: how many sessions it has
 	Collapsed bool   // RowWorkflow
@@ -121,7 +121,7 @@ func BuildRows(st store.State, live []claudecli.Session, snaps map[string]transc
 			known[s.SessionID] = true
 			snap := snaps[snapID]
 			r := Row{Kind: RowSession, Workflow: wf, Session: s, Live: l, Snap: snap,
-				Status: status.From(l, snap.Prompts > 0), Tokens: snap.Usage.Total()}
+				Status: status.From(l, snap.Prompts > 0), Tokens: snap.Usage.Fresh()}
 			head.Sessions++
 			head.Tokens += r.Tokens
 			head.Stats.Tokens += r.Tokens
@@ -152,7 +152,7 @@ func BuildRows(st store.State, live []claudecli.Session, snaps map[string]transc
 		}
 		snap := snaps[l.SessionID]
 		others = append(others, Row{Kind: RowOther, Live: l, Snap: snap,
-			Status: status.From(l, snap.Prompts > 0), Tokens: snap.Usage.Total()})
+			Status: status.From(l, snap.Prompts > 0), Tokens: snap.Usage.Fresh()})
 	}
 	if len(others) > 0 {
 		rows = append(rows, Row{Kind: RowOtherHeader})

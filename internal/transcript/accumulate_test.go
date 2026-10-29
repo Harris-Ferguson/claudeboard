@@ -112,3 +112,9 @@ func TestPromptsThatStartWithMarkupAreKept(t *testing.T) {
 		t.Errorf("Prompts = %d, FirstPrompt = %q; pasted code is a real prompt, Claude Code's wrappers aren't", s.Prompts, s.FirstPrompt)
 	}
 }
+
+func TestFreshLeavesOutCacheReads(t *testing.T) {
+	if got := (Usage{Input: 1, Output: 2, CacheRead: 1000, CacheWrite: 4}).Fresh(); got != 7 {
+		t.Errorf("Fresh = %d, want 7", got)
+	}
+}
