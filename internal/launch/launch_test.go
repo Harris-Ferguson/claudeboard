@@ -158,3 +158,22 @@ func TestRunDoesNotHoldTheLockWhileWaitingForTheSession(t *testing.T) {
 		t.Errorf("session ID not recorded: %+v", sess)
 	}
 }
+
+func TestRunDoesNotReuseTheNumberOfADeletedSession(t *testing.T) {
+	l, st := &stubLauncher{}, store.Open(t.TempDir())
+	ctx := context.Background()
+	for i := 0; i < 2; i++ {
+		if _, err := Run(ctx, l, st, config.Config{}, Request{Workflow: "w", Dir: "/r"}, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// cb-w-2 is deleted (claude rm may keep its worktree, w-2, if it has unpushed work)
+	if err := st.Update(func(s *store.State) error { s.RemoveSession("", "cb-w-2"); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	l.live = l.live[:1]
+	sess, err := Run(ctx, l, st, config.Config{}, Request{Workflow: "w", Dir: "/r", Worktree: true}, now)
+	if err != nil || sess.Name != "cb-w-3" || sess.Worktree != "w-3" {
+		t.Errorf("session = %+v, %v; want cb-w-3 in worktree w-3", sess, err)
+	}
+}

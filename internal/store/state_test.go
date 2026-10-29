@@ -120,3 +120,10 @@ func TestRelinkTracksTheReportedFolder(t *testing.T) {
 		t.Error("NeedsRelink still true after Relink")
 	}
 }
+
+func TestNextSessionNumberNeverReusesANumber(t *testing.T) {
+	st := State{Workflows: []Workflow{{Slug: "w", LastNumber: 5}}, Sessions: []Session{{Name: "cb-w-2"}}}
+	if n := st.NextSessionNumber("w"); n != 6 {
+		t.Errorf("NextSessionNumber = %d, want 6 (5 was used by a deleted session)", n)
+	}
+}

@@ -72,7 +72,7 @@ func Run(ctx context.Context, l Launcher, st *store.Store, cfg config.Config, re
 			return err
 		}
 		sess.ShortID = shortID
-		wf.LastRepo = req.Repo
+		wf.LastRepo, wf.LastNumber = req.Repo, n
 		s.UpsertSession(sess)
 		return nil
 	})

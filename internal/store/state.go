@@ -11,11 +11,12 @@ import (
 
 // Workflow is a named group of sessions.
 type Workflow struct {
-	Slug      string    `json:"slug"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	Archived  bool      `json:"archived"`
-	LastRepo  string    `json:"last_repo"`
+	Slug       string    `json:"slug"`
+	Name       string    `json:"name"`
+	CreatedAt  time.Time `json:"created_at"`
+	Archived   bool      `json:"archived"`
+	LastRepo   string    `json:"last_repo"`
+	LastNumber int       `json:"last_number,omitempty"` // highest session number ever used
 }
 
 // Session is a Claude Code background session claudeboard started (or adopted).
@@ -74,9 +75,13 @@ func (st *State) EnsureWorkflow(name string, now time.Time) (*Workflow, error) {
 }
 
 // NextSessionNumber returns one more than the highest session number used in the
-// workflow, counting recorded sessions and extraNames (such as names Claude lists).
+// workflow, counting recorded sessions, extraNames (such as names Claude lists) and
+// deleted sessions, so a number (and the worktree named after it) is never reused.
 func (st *State) NextSessionNumber(slug string, extraNames ...string) int {
 	highest := 0
+	if wf := st.Workflow(slug); wf != nil {
+		highest = wf.LastNumber
+	}
 	check := func(name string) {
 		if s, n, ok := ParseSessionName(name); ok && s == slug && n > highest {
 			highest = n
