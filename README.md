@@ -74,10 +74,14 @@ Statuses: `●` working, `!` needs you (with what it's waiting for), `✓` done 
 `○` new (no prompt yet), `◌` stopped.
 
 A `•` before a session's label (in bold) means it's **unread**: Claude finished a turn
-(✓ done or ! needs you) since you last looked. Opening the session, or having it
-selected while the preview shows, counts as looking. A workflow shows `•` when any of
-its sessions is unread. Read state is kept in `~/.claudeboard/state.json`; sessions the
-board sees for the first time start out read.
+(✓ done or ! needs you) since you last looked. Opening the session counts as looking,
+and so does resting the cursor on it for about a second while the preview shows;
+moving the cursor past it doesn't. A workflow shows `•` when any of its sessions is
+unread, folded or not. Read state is kept in `~/.claudeboard/state.json`. Sessions
+claudeboard starts, from the board or with `claudeboard new`, begin with nothing seen,
+so a result that comes in while the board is closed still shows. Sessions claudeboard
+didn't start (under Other sessions), and ones from before it kept read state, start
+out read the first time the board sees them.
 
 Token counts on rows, workflows and in the header are the tokens each session added:
 input, output and cache writes. They leave out cache reads, which re-count the same

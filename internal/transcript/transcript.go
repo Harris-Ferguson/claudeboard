@@ -45,6 +45,8 @@ type Snapshot struct {
 	Usage       Usage  // tokens, including subagents
 	FirstPrompt string
 	Prompts     int
-	Activity    int // Claude's messages in the main conversation; only ever goes up
 	Subagents   int
+	// Activity counts Claude's records in the main conversation (Claude Code writes one
+	// per content block). It starts over if the file is rewritten, so it can go down.
+	Activity int
 }
