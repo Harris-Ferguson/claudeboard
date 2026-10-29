@@ -57,6 +57,7 @@ Run `claudeboard`.
 | Enter | open the session; **Ctrl+Z inside it comes back to the board**. On a workflow: fold/unfold |
 | Tab | jump to the next session that needs you |
 | n | new session: pick a workflow, then a folder, and Claude opens straight away |
+| N | new session at once, in a new workflow with a random name (like `amber-otter`), in the selected row's folder; asks only about a worktree if that folder is busy |
 | s | quick one-off in the scratch folder, no questions |
 | x | stop the session (keeps its conversation and worktree) |
 | r | resume a stopped session in the background |
