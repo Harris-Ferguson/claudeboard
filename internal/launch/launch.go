@@ -33,10 +33,10 @@ var (
 	pollAttempts = 10
 )
 
-// Run starts the session and records it. It holds the store lock for the whole launch,
-// so two launches can't pick the same session number, and nothing is recorded if
-// Claude refuses to start (for example in an untrusted folder; see
-// claudecli.IsUntrusted).
+// Run starts the session and records it. It holds the store lock while launching, so
+// two launches can't pick the same session number, and nothing is recorded if Claude
+// refuses to start (for example in an untrusted folder; see claudecli.IsUntrusted).
+// The full session ID is looked up afterwards, without the lock.
 func Run(ctx context.Context, l Launcher, st *store.Store, cfg config.Config, req Request, now time.Time) (store.Session, error) {
 	workflow := req.Workflow
 	if workflow == "" {
@@ -72,13 +72,18 @@ func Run(ctx context.Context, l Launcher, st *store.Store, cfg config.Config, re
 			return err
 		}
 		sess.ShortID = shortID
-		sess.SessionID = resolveSessionID(ctx, l, shortID)
 		wf.LastRepo = req.Repo
 		s.UpsertSession(sess)
 		return nil
 	})
 	if err != nil {
 		return store.Session{}, err
+	}
+	if id := resolveSessionID(ctx, l, sess.ShortID); id != "" {
+		sess.SessionID = id
+		if err := st.Update(func(s *store.State) error { s.UpsertSession(sess); return nil }); err != nil {
+			return sess, err
+		}
 	}
 	return sess, nil
 }

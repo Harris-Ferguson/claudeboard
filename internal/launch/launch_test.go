@@ -117,3 +117,44 @@ func TestDirBusy(t *testing.T) {
 		t.Error("a failed session shouldn't count as busy")
 	}
 }
+
+// lockProbe checks, while Run waits for the new session to be listed, whether another
+// store writer (such as the board) can get in.
+type lockProbe struct {
+	stubLauncher
+	st          *store.Store
+	probed      bool
+	writerGotIn bool
+}
+
+func (l *lockProbe) List(ctx context.Context) ([]claudecli.Session, error) {
+	if len(l.launched) > 0 && !l.probed {
+		l.probed = true
+		done := make(chan struct{})
+		go func() {
+			_ = l.st.Update(func(*store.State) error { return nil })
+			close(done)
+		}()
+		select {
+		case <-done:
+			l.writerGotIn = true
+		case <-time.After(300 * time.Millisecond):
+		}
+	}
+	return l.live, nil
+}
+
+func TestRunDoesNotHoldTheLockWhileWaitingForTheSession(t *testing.T) {
+	st := store.Open(t.TempDir())
+	l := &lockProbe{st: st}
+	sess, err := Run(context.Background(), l, st, config.Config{}, Request{Dir: "/s"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !l.writerGotIn {
+		t.Error("other writers were locked out while Run waited for claude agents to list the session")
+	}
+	if state, _, _ := st.Load(); sess.SessionID == "" || state.Session(sess.SessionID) == nil {
+		t.Errorf("session ID not recorded: %+v", sess)
+	}
+}
