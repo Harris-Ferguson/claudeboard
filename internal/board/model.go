@@ -20,6 +20,9 @@ const (
 	refreshEvery = 1500 * time.Millisecond
 	staleAfter   = 5 * time.Second
 	narrowWidth  = 90 // below this the preview is hidden unless toggled with p
+	// lookTime is how long the cursor rests on a session, with the preview showing,
+	// before the session counts as seen.
+	lookTime = time.Second
 )
 
 // Source is everything the board needs from Claude Code. claudecli.CLI implements it;
@@ -101,6 +104,17 @@ type Model struct {
 	listErr    error
 	message    string // one-line note in the footer
 
+	// seen is what this board has marked seen (by session ID). It's laid over the
+	// state's own record, so a refresh that read state.json before the save landed
+	// doesn't make a session unread again.
+	seen map[string]int
+	// seenAfterAttach is the short ID of the session the user just came back from; the
+	// next refresh marks it seen.
+	seenAfterAttach string
+	// selKey is the row the cursor is on, and selSince when it got there.
+	selKey   string
+	selSince time.Time
+
 	mode       mode
 	flow       newFlow
 	pending    Row    // the row a y/N question is about
@@ -136,6 +150,11 @@ func (m *Model) rebuild() {
 	if r, ok := m.selected(); ok {
 		key = r.Key()
 	}
+	for id, n := range m.seen {
+		if cur, ok := m.state.Seen[id]; !ok || cur < n {
+			m.state.MarkSeen(id, n)
+		}
+	}
 	m.rows, m.counts = BuildRows(m.state, m.live, m.snaps, m.collapsed, m.showArchived)
 	found := false
 	for i, r := range m.rows {
@@ -152,6 +171,7 @@ func (m *Model) rebuild() {
 	}
 	m.skipHeader(1)
 	m.ensureVisible()
+	m.noteCursor()
 }
 
 // skipHeader moves the cursor off the "Other sessions" heading, in direction dir if
@@ -175,6 +195,7 @@ func (m *Model) move(d int) {
 	m.skipHeader(d)
 	m.previewScroll = 0
 	m.ensureVisible()
+	m.noteCursor()
 }
 
 // ensureVisible scrolls the left pane so the cursor's row is on screen.

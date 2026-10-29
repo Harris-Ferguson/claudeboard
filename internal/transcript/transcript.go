@@ -46,4 +46,7 @@ type Snapshot struct {
 	FirstPrompt string
 	Prompts     int
 	Subagents   int
+	// Activity counts Claude's records in the main conversation (Claude Code writes one
+	// per content block). It starts over if the file is rewritten, so it can go down.
+	Activity int
 }

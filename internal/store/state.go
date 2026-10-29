@@ -49,6 +49,26 @@ type State struct {
 	Version   int        `json:"version"`
 	Workflows []Workflow `json:"workflows"`
 	Sessions  []Session  `json:"sessions"`
+	// Seen is, by session ID, how much of the session's conversation the user has seen
+	// (transcript.Snapshot.Activity), for its own sessions and Other ones alike.
+	Seen map[string]int `json:"seen,omitempty"`
+}
+
+// MarkSeen records that the user has seen the session up to activity.
+func (st *State) MarkSeen(sessionID string, activity int) {
+	if st.Seen == nil {
+		st.Seen = map[string]int{}
+	}
+	st.Seen[sessionID] = activity
+}
+
+// MarkNew records that the user has seen nothing of a session claudeboard started, so
+// its first result shows as unread even if the board wasn't running to see it arrive.
+// A record the session already has is kept.
+func (st *State) MarkNew(sessionID string) {
+	if _, ok := st.Seen[sessionID]; !ok {
+		st.MarkSeen(sessionID, 0)
+	}
 }
 
 // Workflow returns the workflow with this slug, or nil.
@@ -138,6 +158,7 @@ func (st *State) RemoveSession(sessionID, name string) bool {
 	for i, s := range st.Sessions {
 		if (sessionID != "" && s.SessionID == sessionID) || (sessionID == "" && s.Name == name) {
 			st.Sessions = append(st.Sessions[:i], st.Sessions[i+1:]...)
+			delete(st.Seen, s.SessionID)
 			return true
 		}
 	}
@@ -174,8 +195,9 @@ func (st *State) NeedsRelink(listed []Listed) bool {
 
 // Relink brings the state in line with what Claude lists: it refreshes short IDs,
 // fills in IDs for sessions known only by name, and adopts sessions named
-// cb-<slug>-<n> that the state doesn't know (creating their workflows). It returns how
-// many sessions changed.
+// cb-<slug>-<n> that the state doesn't know (creating their workflows). Sessions it
+// fills in or adopts start with nothing seen (MarkNew). It returns how many sessions
+// changed.
 func (st *State) Relink(listed []Listed, now time.Time) int {
 	changed := 0
 	for _, l := range listed {
@@ -200,6 +222,7 @@ func (st *State) Relink(listed []Listed, now time.Time) int {
 		}
 		if s := st.sessionByName(l.Name); s != nil && s.SessionID == "" {
 			s.SessionID, s.ShortID, s.Cwd = l.SessionID, l.ShortID, l.Cwd
+			st.MarkNew(l.SessionID)
 			changed++
 			continue
 		}
@@ -210,6 +233,7 @@ func (st *State) Relink(listed []Listed, now time.Time) int {
 			SessionID: l.SessionID, ShortID: l.ShortID, Name: l.Name,
 			Workflow: slug, Repo: l.Cwd, Dir: l.Cwd, Cwd: l.Cwd, CreatedAt: now,
 		})
+		st.MarkNew(l.SessionID)
 		changed++
 	}
 	return changed

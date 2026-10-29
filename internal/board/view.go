@@ -17,6 +17,7 @@ var (
 	styleDone    = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
 	styleFaint   = lipgloss.NewStyle().Faint(true)
 	styleBold    = lipgloss.NewStyle().Bold(true)
+	styleUnread  = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true)
 )
 
 const (
@@ -164,6 +165,9 @@ func (m Model) rowLine(r Row, selected bool, width int) string {
 		if r.Stats.NeedsYou > 0 {
 			name += "  " + styleNeeds.Render("!")
 		}
+		if r.Stats.Unread > 0 {
+			name += "  " + styleUnread.Render("•")
+		}
 		if r.Collapsed {
 			name += "  [+]"
 		}
@@ -174,9 +178,17 @@ func (m Model) rowLine(r Row, selected bool, width int) string {
 	case RowOtherHeader:
 		return styleFaint.Render("  Other sessions")
 	case RowSession:
-		return fit("  "+marker+statusIcon(r.Status)+" "+repoLabel(r.Session.Repo)+"  "+sessionLabel(r.Snap), tokensOrBlank(r.Tokens), width)
+		return fit("  "+marker+statusIcon(r.Status)+" "+repoLabel(r.Session.Repo)+labelPart(r), tokensOrBlank(r.Tokens), width)
 	}
-	return fit("  "+marker+statusIcon(r.Status)+" "+r.Name()+"  "+sessionLabel(r.Snap), tokensOrBlank(r.Tokens), width)
+	return fit("  "+marker+statusIcon(r.Status)+" "+r.Name()+labelPart(r), tokensOrBlank(r.Tokens), width)
+}
+
+// labelPart is a session row's label, after a "•" and in bold when it's unread.
+func labelPart(r Row) string {
+	if r.Unread {
+		return " " + styleUnread.Render("•") + " " + styleBold.Render(sessionLabel(r.Snap))
+	}
+	return "  " + sessionLabel(r.Snap)
 }
 
 func statusIcon(s status.Status) string {

@@ -41,7 +41,8 @@ var (
 // Run starts the session and records it. It holds the store lock while launching, so
 // two launches can't pick the same session number, and nothing is recorded if Claude
 // refuses to start (for example in an untrusted folder; see claudecli.IsUntrusted).
-// The full session ID is looked up afterwards, without the lock.
+// The full session ID is looked up afterwards, without the lock, and the session is
+// recorded as having nothing seen, so its first result shows as unread on the board.
 func Run(ctx context.Context, l Launcher, st *store.Store, cfg config.Config, req Request, now time.Time) (store.Session, error) {
 	workflow := req.Workflow
 	if workflow == "" {
@@ -87,7 +88,11 @@ func Run(ctx context.Context, l Launcher, st *store.Store, cfg config.Config, re
 	}
 	if id := resolveSessionID(ctx, l, sess.ShortID); id != "" {
 		sess.SessionID = id
-		if err := st.Update(func(s *store.State) error { s.UpsertSession(sess); return nil }); err != nil {
+		if err := st.Update(func(s *store.State) error {
+			s.UpsertSession(sess)
+			s.MarkNew(id)
+			return nil
+		}); err != nil {
 			return sess, err
 		}
 	}

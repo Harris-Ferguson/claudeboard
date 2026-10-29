@@ -51,8 +51,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := m.startRefresh()
 		return m, tea.Batch(cmd, tick())
 	case refreshedMsg:
-		m.applyRefresh(msg)
-		return m, nil
+		cmd := m.applyRefresh(msg)
+		return m, cmd
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	case applier:
@@ -147,7 +147,7 @@ func toListed(live []claudecli.Session) []store.Listed {
 	return out
 }
 
-func (m *Model) applyRefresh(msg refreshedMsg) {
+func (m *Model) applyRefresh(msg refreshedMsg) tea.Cmd {
 	m.refreshing = false
 	m.readers = msg.readers
 	if msg.storeErr != nil {
@@ -164,6 +164,9 @@ func (m *Model) applyRefresh(msg refreshedMsg) {
 		m.live, m.listErr, m.lastOK = msg.live, nil, msg.at
 	}
 	m.rebuild()
+	cmd := m.noteSeen(m.seenAfterAttach)
+	m.seenAfterAttach = ""
+	return cmd
 }
 
 func (m Model) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -222,6 +225,7 @@ func (m *Model) nextWaiting() {
 		if r := m.rows[j]; (r.Kind == RowSession || r.Kind == RowOther) && r.Status.Kind == status.NeedsYou {
 			m.cursor, m.previewScroll = j, 0
 			m.ensureVisible()
+			m.noteCursor()
 			return
 		}
 	}
