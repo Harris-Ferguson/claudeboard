@@ -172,7 +172,7 @@ usage telemetry or error reports and fetches no feature flags. Your sessions run
 Claude's background service, which keeps the environment of the command that started it.
 `claude attach` starts that service if it isn't running, and the service would inherit
 `DISABLE_TELEMETRY=1`, so before opening a session Claude doesn't list as running
-(stopped, failed, or no longer listed), the board resumes it with
+(stopped, failed, crashed or exited, or no longer listed), the board resumes it with
 `claude --bg --resume`, which starts the service, if needed, with your own environment.
 One case remains: if the service stops while you're attached and the viewer restarts
 it, that service and the sessions it runs inherit `DISABLE_TELEMETRY=1` until it exits.

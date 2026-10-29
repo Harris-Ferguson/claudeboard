@@ -214,7 +214,7 @@ func withOther(t *testing.T, state string) (Model, *stubSource) {
 // service would keep the viewer's DISABLE_TELEMETRY=1. So a session that isn't running
 // is resumed first, which keeps its ID, and then opened.
 func TestEnterResumesOtherBackgroundSessionThatIsNotRunning(t *testing.T) {
-	for _, state := range []string{"stopped", "failed"} {
+	for _, state := range []string{"stopped", "failed", "crashed", "exited"} {
 		t.Run(state, func(t *testing.T) {
 			m, src := withOther(t, state)
 			m, cmd := press(t, m, "enter")
@@ -232,8 +232,10 @@ func TestEnterResumesOtherBackgroundSessionThatIsNotRunning(t *testing.T) {
 	}
 }
 
+// A session in any state other than a finished one is in Claude's background service,
+// so attaching can't start the service; resuming it would start a copy instead.
 func TestEnterOpensRunningOtherBackgroundSession(t *testing.T) {
-	for _, state := range []string{"working", "blocked", "done"} {
+	for _, state := range []string{"working", "blocked", "done", "starting", "pending"} {
 		t.Run(state, func(t *testing.T) {
 			m, src := withOther(t, state)
 			_, cmd := press(t, m, "enter")
