@@ -119,3 +119,21 @@ func TestResolveRepo(t *testing.T) {
 		t.Error("ResolveRepo(\"nope\") should fail")
 	}
 }
+
+func TestResolveRepoErrorsSayWhatToFix(t *testing.T) {
+	home := t.TempDir()
+	writeConfig(t, home, "[repos]\napi = \"/no/such/api\"\nweb = \"/no/such/web\"\n")
+	cfg, err := Load(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfgPath := filepath.Join(home, "config.toml")
+	_, err = cfg.ResolveRepo("api", t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), `repo "api"`) || !strings.Contains(err.Error(), "/no/such/api") || !strings.Contains(err.Error(), cfgPath) {
+		t.Errorf("missing repo folder: %v", err)
+	}
+	_, err = cfg.ResolveRepo("nope", t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "api, web") || !strings.Contains(err.Error(), cfgPath) {
+		t.Errorf("unknown repo: %v", err)
+	}
+}

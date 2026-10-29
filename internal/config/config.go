@@ -23,6 +23,7 @@ type Defaults struct {
 
 // Config is the parsed config file, with "~" expanded in every path.
 type Config struct {
+	Path       string            `toml:"-"` // the file it was read from
 	ScratchDir string            `toml:"scratch_dir"`
 	Repos      map[string]string `toml:"repos"`
 	Defaults   Defaults          `toml:"defaults"`
@@ -88,6 +89,7 @@ func Load(home string) (Config, error) {
 	if _, err := toml.DecodeFile(path, &c); err != nil {
 		return Config{}, fmt.Errorf("reading %s: %w", path, err)
 	}
+	c.Path = path
 	if c.ScratchDir == "" {
 		c.ScratchDir = filepath.Join(home, "scratch")
 	}
@@ -131,6 +133,9 @@ func (c Config) ResolveRepo(arg, cwd string) (string, error) {
 	case arg == "":
 		return cwd, nil
 	case c.Repos[arg] != "":
+		if !isDir(c.Repos[arg]) {
+			return "", fmt.Errorf("repo %q in %s points to %s, which isn't a folder", arg, c.Path, c.Repos[arg])
+		}
 		return c.Repos[arg], nil
 	case arg == "scratch":
 		return c.ScratchDir, nil
@@ -139,8 +144,17 @@ func (c Config) ResolveRepo(arg, cwd string) (string, error) {
 	if !filepath.IsAbs(p) {
 		p = filepath.Join(cwd, p)
 	}
-	if info, err := os.Stat(p); err != nil || !info.IsDir() {
-		return "", fmt.Errorf("%q is neither a repo in config.toml nor a folder", arg)
+	if !isDir(p) {
+		known := "none yet"
+		if len(c.Repos) > 0 {
+			known = strings.Join(slices.Sorted(maps.Keys(c.Repos)), ", ")
+		}
+		return "", fmt.Errorf("%q is neither a folder nor a repo in %s (repos: %s)", arg, c.Path, known)
 	}
 	return filepath.Clean(p), nil
+}
+
+func isDir(p string) bool {
+	info, err := os.Stat(p)
+	return err == nil && info.IsDir()
 }
