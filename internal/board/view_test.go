@@ -158,3 +158,22 @@ func TestWideCharactersKeepBoxAligned(t *testing.T) {
 		assertBox(t, m.render(), w, 16)
 	}
 }
+
+func TestMultiLineMessageStaysOnOneLine(t *testing.T) {
+	m, _ := testModel(t, 100, 16)
+	m.message = "claude rm: Error: x\nsecond\nthird"
+	out := m.render()
+	assertBox(t, out, 100, 16)
+	if !strings.Contains(ansi.Strip(out), "claude rm: Error: x second third") {
+		t.Errorf("message not joined onto one line:\n%s", ansi.Strip(out))
+	}
+}
+
+func TestNarrowScreenWithPreviewToggledDoesNotCrash(t *testing.T) {
+	for w := 30; w <= 60; w++ {
+		m, _ := testModel(t, w, 12)
+		m.previewToggled = true
+		m.cursor = 2
+		assertBox(t, m.render(), w, 12)
+	}
+}

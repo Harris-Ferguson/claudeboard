@@ -21,9 +21,10 @@ var (
 )
 
 const (
-	defaultHelp  = "↑↓ move  enter open  tab next waiting  n new  s quick  ? help  q quit"
-	shortHelp    = "↑↓ enter open  n new  s quick  ? help  q quit"
-	maxItemLines = 8 // a long prompt or reply takes at most this many preview lines
+	defaultHelp     = "↑↓ move  enter open  tab next waiting  n new  s quick  ? help  q quit"
+	shortHelp       = "↑↓ enter open  n new  s quick  ? help  q quit"
+	maxItemLines    = 8 // a long prompt or reply takes at most this many preview lines
+	minPreviewWidth = 20
 )
 
 // View implements tea.Model.
@@ -43,11 +44,13 @@ func (m Model) render() string {
 		return "claudeboard: terminal too small"
 	}
 	bh := m.bodyHeight()
-	wide := m.previewVisible()
 	lw, rw := w-2, 0
-	if wide {
-		lw = clamp(w*2/5, 28, 50)
-		rw = w - lw - 3
+	wide := false
+	if m.previewVisible() {
+		// Two panes only when the preview gets a usable width.
+		if l := clamp(w*2/5, 28, 50); w-l-3 >= minPreviewWidth {
+			wide, lw, rw = true, l, w-l-3
+		}
 	}
 	var left, right []string
 	if !wide && m.panelMode() {
@@ -120,7 +123,8 @@ func (m Model) footer(width int) string {
 		return styleNeeds.Render(m.flow.req.Dir + " isn't trusted yet. Open Claude there to accept, then /exit? y/N")
 	}
 	if m.message != "" {
-		return m.message
+		// Messages can carry Claude's multi-line output; the footer is one line.
+		return strings.Join(strings.Fields(m.message), " ")
 	}
 	if ansi.StringWidth(defaultHelp) > width {
 		return styleFaint.Render(shortHelp)
