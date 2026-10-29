@@ -10,7 +10,7 @@ import (
 
 func TestFormatTokens(t *testing.T) {
 	cases := map[int64]string{0: "0", 950: "950", 1234: "1.2k", 9949: "9.9k", 9950: "10k", 41234: "41k",
-		999_499: "999k", 999_500: "1.00M", 1_240_000: "1.24M"}
+		999_499: "999k", 999_500: "1.00M", 1_240_000: "1.24M", 46_230_000: "46.2M", 401_410_000: "401M", 2_500_000_000: "2.50B"}
 	for n, want := range cases {
 		if got := formatTokens(n); got != want {
 			t.Errorf("formatTokens(%d) = %q, want %q", n, got, want)

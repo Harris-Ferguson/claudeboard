@@ -13,7 +13,8 @@ import (
 // maxLabel is the most of a first prompt shown as a row label.
 const maxLabel = 40
 
-// formatTokens renders a token count compactly: 950, 1.2k, 41k, 1.24M.
+// formatTokens renders a token count in at most five characters: 950, 1.2k, 41k,
+// 1.24M, 46.2M, 401M, 2.50B.
 func formatTokens(n int64) string {
 	switch {
 	case n < 1000:
@@ -22,8 +23,14 @@ func formatTokens(n int64) string {
 		return fmt.Sprintf("%.1fk", float64(n)/1000)
 	case n < 999_500:
 		return fmt.Sprintf("%dk", (n+500)/1000)
+	case n < 9_995_000:
+		return fmt.Sprintf("%.2fM", float64(n)/1e6)
+	case n < 99_950_000:
+		return fmt.Sprintf("%.1fM", float64(n)/1e6)
+	case n < 999_500_000:
+		return fmt.Sprintf("%dM", (n+500_000)/1_000_000)
 	default:
-		return fmt.Sprintf("%.2fM", float64(n)/1_000_000)
+		return fmt.Sprintf("%.2fB", float64(n)/1e9)
 	}
 }
 

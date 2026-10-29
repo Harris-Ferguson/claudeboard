@@ -1,0 +1,150 @@
+# claudeboard
+
+A terminal control panel for Claude Code. See every session you have going, across
+all your repos, grouped into workflows. Jump into one with Enter and back out with
+Ctrl+Z, start new ones in a couple of keystrokes, and keep an eye on token usage.
+
+It's built on Claude Code's background sessions (`claude --bg`), so sessions keep
+running when you quit the board.
+
+```
+┌ claudeboard · 1 working · 1 needs you · 65k tokens ───────────────────────────┐
+│ payments-v2  !             53k │ cb-payments-v2-2 · web · 12k tokens          │
+│   ● api  wire the new Aft… 41k │ in 1.2k · out 8.4k · cache r 2.1k · w 300    │
+│ ▸ ! web  hook PaymentForm… 12k │ ! needs you — permission prompt: Bash npm t… │
+│ q4-search                  12k │                                              │
+│   ✓ api  plan the search…  12k │ you: hook PaymentForm into checkout          │
+│ quick                          │ • Edit CheckoutPage.vue                      │
+│   ○ scratch  new session       │ • Bash npm test                              │
+│ Other sessions                 │ claude: Wired it in. Running the tests…      │
+│   ● arbybot-8d                 │                                              │
+├────────────────────────────────┴──────────────────────────────────────────────┤
+│ ↑↓ move  enter open  tab next waiting  n new  s quick  ? help  q quit         │
+└───────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Requirements
+
+- macOS (Linux probably works but is untested)
+- Claude Code 2.1.312 or newer, with background sessions: `claude agents --json` must print JSON
+- Go 1.26 or newer. With an older Go, `go install` downloads 1.26 by itself (`GOTOOLCHAIN=auto`, the default)
+
+## Install
+
+```sh
+git clone https://github.com/Harris-Ferguson/claudeboard
+cd claudeboard
+go install ./cmd/claudeboard
+```
+
+That puts `claudeboard` in `$(go env GOPATH)/bin`, which needs to be on your `PATH`.
+To update later, run `git pull && go install ./cmd/claudeboard`. `claudeboard --version`
+shows which commit you're running.
+
+## Using it
+
+Run `claudeboard`.
+
+| Key | Does |
+|---|---|
+| ↑↓ / j k | move |
+| Enter | open the session; **Ctrl+Z inside it comes back to the board**. On a workflow: fold/unfold |
+| Tab | jump to the next session that needs you |
+| n | new session: pick a workflow, then a folder, and Claude opens straight away |
+| s | quick one-off in the scratch folder, no questions |
+| x | stop the session (keeps its conversation and worktree) |
+| r | resume a stopped session in the background |
+| D | delete the session and its worktree (asks first) |
+| a / A | archive a workflow / show archived workflows |
+| p | show or hide the preview (hidden by default below 90 columns) |
+| PgUp / PgDn | scroll the preview |
+| ? | help |
+| q | quit; sessions keep running |
+
+Statuses: `●` working, `!` needs you (with what it's waiting for), `✓` done (your turn),
+`○` new or stopped.
+
+"Other sessions" lists Claude sessions claudeboard didn't start, such as ones you
+started in another terminal. You can preview them, and open, stop or delete the
+background ones.
+
+### From any terminal
+
+```sh
+claudeboard new                                  # quick session here, opens straight away
+claudeboard new -w payments-v2 -r api            # into a workflow, in a configured repo
+claudeboard new -w payments-v2 -r api --worktree # in its own git worktree
+claudeboard new -w bugs "fix the flaky test"     # with a prompt: starts in the background and returns
+```
+
+## Config
+
+`~/.claudeboard/config.toml` is created on first run:
+
+```toml
+# scratch_dir = "~/.claudeboard/scratch"   # where quick one-offs run
+
+[repos]               # repos you start sessions in: name = path
+api = "~/work/api"
+web = "~/work/web"
+
+[defaults]
+model = ""            # empty = Claude Code's default
+permission_mode = ""  # empty = Claude Code's default
+ide = false           # pass --ide so diffs open in your IDE
+```
+
+`CLAUDEBOARD_HOME` moves the whole folder somewhere else.
+
+## PHPStorm
+
+- Run `claudeboard` in PHPStorm's terminal tool window.
+- By default, Esc in that terminal moves focus to the editor instead of reaching Claude.
+  Turn it off in **Settings → Tools → Terminal**: untick **Move focus to the editor with Escape**.
+- To have diffs open in PHPStorm, set `ide = true`. This is untested with background
+  sessions; see the checklist.
+
+## First-run checklist
+
+1. `claude --version` shows 2.1.312 or newer, and `claude agents --json` prints JSON.
+2. Run `claude` once in the clone folder and accept the trust prompt, then
+   `go test -tags realclaude -v ./internal/claudecli`. This starts and deletes an idle
+   session; no prompt is sent, so it uses no tokens.
+3. Add your repos to `~/.claudeboard/config.toml`, then run `claudeboard`.
+4. Press `n`, choose "+ new workflow…", name it, and pick a repo. Claude opens. Type a
+   prompt, then press Ctrl+Z. The row shows `●` working, then `✓` done, and the preview
+   shows the conversation and token counts.
+5. When a session asks for permission, the header says "1 needs you" and Tab jumps to it.
+6. `x` stops a session (`○ stopped`). Enter reopens it.
+7. `D` deletes it. For a worktree session, check the worktree folder is gone.
+8. `s` the first time asks to trust the scratch folder. Press `y`, accept in Claude,
+   type `/exit`, and the session starts.
+9. In PHPStorm's terminal, after the Esc setting above, Esc interrupts Claude.
+10. With `ide = true`, start a session that edits a file and see whether the diff opens
+    in PHPStorm.
+
+## Troubleshooting
+
+- **"isn't trusted yet"**: Claude Code won't start background sessions in a folder you
+  haven't trusted. Run `claude` there once and accept the prompt.
+- **"status stale"**: `claude agents --json` is failing or slow. Run it yourself to see why.
+- **A session shows "no messages yet" after you've talked to it**: was it started from
+  inside another Claude session's shell? claudeboard removes the variables that turn
+  off conversation saving, but sessions started some other way may not have saved.
+
+## How it works
+
+claudeboard runs `claude --bg` to start sessions, polls `claude agents --json` for their
+state, and hands your terminal to `claude attach` to open one. It reads each session's
+conversation file under `~/.claude/projects/` for the preview and token counts, and
+keeps its own list of workflows in `~/.claudeboard/state.json`. Sessions it starts are
+named `cb-<workflow>-<n>`, so they're recognisable in `claude agents` too. The design is
+in `docs/superpowers/specs/2026-10-28-claudeboard-design.md`.
+
+## Development
+
+```sh
+go test ./...                                     # everything, no real Claude needed
+go test ./internal/board -update                  # rewrite the reference screens
+go test -tags realclaude -v ./internal/claudecli  # check against your real Claude Code
+```

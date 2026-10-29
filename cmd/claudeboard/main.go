@@ -26,8 +26,7 @@ const usage = `usage: claudeboard [command]
 // run dispatches subcommands and returns the process exit code.
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "claudeboard: the board isn't built yet")
-		return 1
+		return runBoard(stderr)
 	}
 	switch args[0] {
 	case "--version", "-v", "version":
