@@ -177,3 +177,23 @@ func TestNoResumeBeforeClaudeHasListedSessions(t *testing.T) {
 		}
 	}
 }
+
+func TestEnterOnAForgottenNeverPromptedSession(t *testing.T) {
+	m, src := testModel(t, 100, 16)
+	m.live = m.live[:3:3] // Claude no longer lists cb-quick-1, which never got a prompt
+	m.rebuild()
+	m.cursor = 6
+	m, cmd := press(t, m, "enter")
+	if cmd != nil || len(src.resumed) != 0 || !strings.Contains(m.message, "D removes it") {
+		t.Errorf("cmd %v, resumed %v, message %q", cmd, src.resumed, m.message)
+	}
+}
+
+func TestResumingMessageClearsOnceOpened(t *testing.T) {
+	m, _ := testModel(t, 100, 16)
+	m.message = "resuming cb-q4-search-1…"
+	m, _ = send(m, resumedMsg{shortID: "aaaa0003"})
+	if m.message != "" {
+		t.Errorf("message %q", m.message)
+	}
+}

@@ -36,7 +36,10 @@ func (msg actionDoneMsg) apply(m Model) (Model, tea.Cmd) {
 // resumedMsg says a session was resumed so it can be opened.
 type resumedMsg struct{ shortID string }
 
-func (msg resumedMsg) apply(m Model) (Model, tea.Cmd) { return m, m.attach(msg.shortID) }
+func (msg resumedMsg) apply(m Model) (Model, tea.Cmd) {
+	m.message = ""
+	return m, m.attach(msg.shortID)
+}
 
 // attachDoneMsg arrives when the user comes back from a session.
 type attachDoneMsg struct{ err error }
@@ -79,6 +82,11 @@ func (m Model) enter() (tea.Model, tea.Cmd) {
 		}
 		if r.Session.SessionID == "" {
 			m.message = "can't reopen " + r.Name() + ": Claude doesn't list it and its session ID is unknown"
+			return m, nil
+		}
+		if r.Live == nil && !r.Snap.Found {
+			// Claude forgot it and it never got a prompt: there is nothing to resume.
+			m.message = r.Name() + " is gone from Claude and was never used; D removes it"
 			return m, nil
 		}
 		m.message = "resuming " + r.Name() + "…"

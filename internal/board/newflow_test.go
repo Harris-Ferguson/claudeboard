@@ -163,3 +163,26 @@ func TestPreviewKeyExplainsWhenTheScreenIsTooNarrow(t *testing.T) {
 		t.Errorf("message %q", m.message)
 	}
 }
+
+func TestTrustDeclinedInClaudeDoesNotAskAgain(t *testing.T) {
+	m, src := testModel(t, 100, 16)
+	src.launchErr = errors.New("claude --bg: Workspace not trusted. Run `claude` in /home/.claudeboard/scratch once")
+	m, cmd := press(t, m, "s")
+	m, _ = send(m, cmd())
+	m, _ = press(t, m, "y")                         // opens claude; the user presses Esc there
+	m, cmd = send(m, trustDoneMsg{req: m.flow.req}) // still untrusted, so the retry fails
+	m, _ = send(m, cmd())
+	if m.mode != modeList || !strings.Contains(m.message, "still isn't trusted") {
+		t.Errorf("mode %v, message %q", m.mode, m.message)
+	}
+}
+
+func TestCursorMovesToTheNewSession(t *testing.T) {
+	m, _ := testModel(t, 100, 16)
+	m, cmd := press(t, m, "s")
+	m, _ = send(m, cmd())                  // launched; the board opens it
+	m, _ = send(m, doRefresh(m.deps, nil)) // back from the session, the next refresh lists it
+	if r, _ := m.selected(); r.Session.Name != "cb-quick-2" {
+		t.Errorf("cursor on %q, want the new session cb-quick-2", r.Name())
+	}
+}

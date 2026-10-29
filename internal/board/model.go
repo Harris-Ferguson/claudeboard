@@ -66,10 +66,11 @@ type choice struct {
 
 // newFlow holds the answers so far while starting a session.
 type newFlow struct {
-	choices []choice
-	cursor  int
-	input   textinput.Model
-	req     launch.Request
+	choices  []choice
+	cursor   int
+	input    textinput.Model
+	req      launch.Request
+	trusting bool // the user went to accept the trust prompt; don't ask again
 }
 
 // Model is the board's whole state.
@@ -98,9 +99,10 @@ type Model struct {
 	listErr    error
 	message    string // one-line note in the footer
 
-	mode    mode
-	flow    newFlow
-	pending Row // the row a y/N question is about
+	mode       mode
+	flow       newFlow
+	pending    Row    // the row a y/N question is about
+	selectName string // a session to move the cursor to once it appears in the rows
 }
 
 // New returns a board. warning, if not empty, is shown in the footer until the first
@@ -135,9 +137,12 @@ func (m *Model) rebuild() {
 	m.rows, m.counts = BuildRows(m.state, m.live, m.snaps, m.collapsed, m.showArchived)
 	found := false
 	for i, r := range m.rows {
+		if m.selectName != "" && r.Kind == RowSession && r.Session.Name == m.selectName {
+			m.cursor, found, m.selectName = i, true, ""
+			break
+		}
 		if r.Key() == key {
 			m.cursor, found = i, true
-			break
 		}
 	}
 	if !found {

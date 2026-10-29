@@ -24,6 +24,11 @@ type launchedMsg struct {
 
 func (msg launchedMsg) apply(m Model) (Model, tea.Cmd) {
 	if msg.err != nil {
+		if claudecli.IsUntrusted(msg.err) && m.flow.trusting {
+			m.flow.trusting = false
+			m.message = tildePath(msg.req.Dir) + " still isn't trusted, so no session was started"
+			return m, nil
+		}
 		if claudecli.IsUntrusted(msg.err) {
 			m.flow.req, m.mode, m.message = msg.req, modeAskTrust, ""
 			return m, nil
@@ -31,7 +36,9 @@ func (msg launchedMsg) apply(m Model) (Model, tea.Cmd) {
 		m.message = "couldn't start a session: " + msg.err.Error()
 		return m, nil
 	}
+	m.flow.trusting = false
 	m.message = "started " + msg.sess.Name
+	m.selectName = msg.sess.Name
 	return m, m.attach(msg.sess.ShortID)
 }
 
@@ -180,6 +187,7 @@ func (m Model) answerTrust(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	req := m.flow.req
+	m.flow.trusting = true
 	return m, tea.ExecProcess(m.deps.Src.TrustCmd(req.Dir), func(error) tea.Msg { return trustDoneMsg{req: req} })
 }
 
