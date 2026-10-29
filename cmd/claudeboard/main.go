@@ -35,7 +35,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "new":
 		return runNew(args[1:], stdout, stderr)
 	case "help", "-h", "--help":
-		fmt.Fprint(stdout, usage)
+		if len(args) > 1 && args[1] == "new" {
+			fmt.Fprint(stdout, newUsage)
+		} else {
+			fmt.Fprint(stdout, usage)
+		}
 		return 0
 	}
 	fmt.Fprintf(stderr, "claudeboard: unknown command %q\n\n%s", args[0], usage)

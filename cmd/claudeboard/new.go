@@ -23,6 +23,13 @@ const newUsage = `usage: claudeboard new [-w workflow] [-r repo|path] [--worktre
   --worktree    run the session in its own git worktree
   prompt        start with this prompt in the background and return;
                 without one, the session opens here (ctrl+z leaves it running)
+
+Options can come before or after the prompt; everything after -- is prompt text.
+
+examples:
+  claudeboard new                               a quick session here, opened right away
+  claudeboard new -w payments -r api --worktree  in the api repo, in its own worktree
+  claudeboard new -w bugs "fix the flaky test"   starts in the background and returns
 `
 
 type newArgs struct {
@@ -32,17 +39,46 @@ type newArgs struct {
 	prompt   string
 }
 
+// parseNewArgs reads -w, -r and --worktree from anywhere in args (so they can follow the
+// prompt), and joins the remaining words into the prompt. Everything after "--" is
+// prompt text, for prompts with words that start with "-".
 func parseNewArgs(args []string) (newArgs, error) {
-	fs := flag.NewFlagSet("new", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
 	var a newArgs
-	fs.StringVar(&a.workflow, "w", "", "")
-	fs.StringVar(&a.repo, "r", "", "")
-	fs.BoolVar(&a.worktree, "worktree", false, "")
-	if err := fs.Parse(args); err != nil {
-		return newArgs{}, err
+	var words []string
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		name, value, hasValue := strings.Cut(strings.TrimLeft(arg, "-"), "=")
+		switch {
+		case arg == "--":
+			words = append(words, args[i+1:]...)
+			i = len(args)
+		case !strings.HasPrefix(arg, "-") || arg == "-":
+			words = append(words, arg)
+		case name == "h" || name == "help":
+			return newArgs{}, flag.ErrHelp
+		case name == "worktree" && !hasValue:
+			a.worktree = true
+		case name == "w" || name == "r":
+			if !hasValue {
+				if i+1 >= len(args) {
+					return newArgs{}, fmt.Errorf("-%s needs a value", name)
+				}
+				i++
+				value = args[i]
+			}
+			if name == "w" {
+				a.workflow = value
+			} else {
+				a.repo = value
+			}
+		default:
+			return newArgs{}, fmt.Errorf("unknown option %s (put the prompt after -- if it starts with -)", arg)
+		}
 	}
-	a.prompt = strings.TrimSpace(strings.Join(fs.Args(), " "))
+	if len(words) == 1 && words[0] == "help" {
+		return newArgs{}, flag.ErrHelp
+	}
+	a.prompt = strings.TrimSpace(strings.Join(words, " "))
 	return a, nil
 }
 
