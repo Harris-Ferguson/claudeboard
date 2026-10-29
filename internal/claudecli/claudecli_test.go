@@ -134,22 +134,25 @@ func TestAvailable(t *testing.T) {
 }
 
 // claude attach spends ~0.3 s (longer on a slow network) sending telemetry after
-// Ctrl+Z before it exits, and the board can't redraw until it has. Only the attach
-// viewer skips it: commands that can start Claude's background service must not, since
-// the service keeps the environment it was started with.
+// Ctrl+Z before it exits, and the board can't redraw until it has, so the attach viewer
+// gets DISABLE_TELEMETRY=1. Launch and the trust prompt get the user's environment as it
+// is, whatever it says about telemetry.
 func TestOnlyAttachSkipsTheTelemetryWait(t *testing.T) {
 	t.Setenv("CLAUDECODE", "1")
+	t.Setenv("DISABLE_TELEMETRY", "") // restored after the test
+	os.Unsetenv("DISABLE_TELEMETRY")  // so the user's own setting doesn't decide the result
+	want := CleanEnv(os.Environ())
 	c := CLI{Bin: "claude"}
 	attach := c.AttachCmd("abc123")
 	if !reflect.DeepEqual(attach.Args, []string{"claude", "attach", "abc123"}) {
 		t.Errorf("args = %q", attach.Args)
 	}
-	if !slices.Contains(attach.Env, "DISABLE_TELEMETRY=1") || slices.Contains(attach.Env, "CLAUDECODE=1") {
-		t.Errorf("attach env should add DISABLE_TELEMETRY=1 and still drop marker variables")
+	if !reflect.DeepEqual(attach.Env, append(slices.Clip(want), "DISABLE_TELEMETRY=1")) {
+		t.Errorf("attach env should be the user's without marker variables, plus DISABLE_TELEMETRY=1")
 	}
 	for _, cmd := range []*exec.Cmd{c.command(context.Background(), "/w", LaunchArgs(LaunchOpts{Name: "cb-w-1"})...), c.TrustCmd("/w")} {
-		if slices.Contains(cmd.Env, "DISABLE_TELEMETRY=1") {
-			t.Errorf("%q must keep the user's telemetry setting", cmd.Args)
+		if !reflect.DeepEqual(cmd.Env, want) {
+			t.Errorf("%q must get the user's environment without marker variables, and no DISABLE_TELEMETRY", cmd.Args)
 		}
 	}
 }
