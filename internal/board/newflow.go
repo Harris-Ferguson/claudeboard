@@ -19,6 +19,7 @@ const newWorkflowChoice = "\x00new"
 type launchedMsg struct {
 	sess store.Session
 	req  launch.Request
+	from string // the session whose conversation this one continues, if any
 	err  error
 }
 
@@ -38,6 +39,9 @@ func (msg launchedMsg) apply(m Model) (Model, tea.Cmd) {
 	}
 	m.flow.trusting = false
 	m.message = "started " + msg.sess.Name
+	if msg.from != "" {
+		m.message = msg.sess.Name + " continues " + msg.from + "'s conversation; " + msg.from + " is still open in its terminal"
+	}
 	m.selectName = msg.sess.Name
 	return m, m.attach(msg.sess.ShortID)
 }
@@ -57,6 +61,12 @@ func (m Model) startNew() (tea.Model, tea.Cmd) {
 	if r, ok := m.selected(); ok && (r.Kind == RowWorkflow || r.Kind == RowSession) {
 		sel = r.Workflow.Slug
 	}
+	m.pickWorkflow(sel)
+	return m, nil
+}
+
+// pickWorkflow opens the workflow picker on the workflow with slug sel, or the first.
+func (m *Model) pickWorkflow(sel string) {
 	var choices []choice
 	cursor := 0
 	for _, wf := range m.state.Workflows {
@@ -71,7 +81,6 @@ func (m Model) startNew() (tea.Model, tea.Cmd) {
 	choices = append(choices, choice{label: "+ new workflow…", value: newWorkflowChoice})
 	m.flow = newFlow{choices: choices, cursor: cursor}
 	m.mode = modePickWorkflow
-	return m, nil
 }
 
 // quick starts a session in the scratch folder, in the quick workflow, with no questions.
@@ -96,8 +105,7 @@ func (m Model) pickerKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case m.mode == modePickRepo:
 			return m.chooseRepo(c.value)
 		case c.value != newWorkflowChoice:
-			m.pickRepoFor(c.value)
-			return m, nil
+			return m.workflowChosen(c.value)
 		}
 		m.flow.input = textinput.New()
 		m.flow.input.Placeholder = "e.g. payments-v2"
@@ -121,12 +129,21 @@ func (m Model) nameKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.message = ""
-		m.pickRepoFor(name)
-		return m, nil
+		return m.workflowChosen(name)
 	}
 	var cmd tea.Cmd
 	m.flow.input, cmd = m.flow.input.Update(k)
 	return m, cmd
+}
+
+// workflowChosen goes on once the workflow is known: to the folder picker for a new
+// session, or straight to moving the Other session.
+func (m Model) workflowChosen(workflow string) (tea.Model, tea.Cmd) {
+	if m.flow.move != nil {
+		return m.moveInto(workflow)
+	}
+	m.pickRepoFor(workflow)
+	return m, nil
 }
 
 // pickRepoFor opens the folder picker for workflow: configured repos, the current
@@ -194,9 +211,14 @@ func (m Model) answerTrust(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // launchCmd starts the session in the background; launchedMsg reports back.
 func (m *Model) launchCmd(req launch.Request) tea.Cmd {
 	m.message = "starting a session…"
-	d := m.deps
+	return launchFor(m.deps, req, "")
+}
+
+// launchFor runs launch.Run off the UI goroutine. from names the session whose
+// conversation req continues, if any.
+func launchFor(d Deps, req launch.Request, from string) tea.Cmd {
 	return func() tea.Msg {
 		sess, err := launch.Run(context.Background(), d.Src, d.Store, d.Cfg, req, d.Now())
-		return launchedMsg{sess: sess, req: req, err: err}
+		return launchedMsg{sess: sess, req: req, from: from, err: err}
 	}
 }

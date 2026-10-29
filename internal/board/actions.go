@@ -13,6 +13,8 @@ import (
 
 const (
 	msgInteractive = "that session runs in another terminal; switch to it there"
+	// Enter on an interactive session also offers to continue it on the board.
+	msgOpenInteractive = "runs in another terminal: switch to it there, or press m to continue it here"
 	// Until Claude has listed its sessions once, every row looks stopped, and resuming
 	// a session that is in fact running would start a copy of it.
 	msgNoListingYet = "still waiting for claude agents to list sessions; try again in a moment"
@@ -71,7 +73,7 @@ func (m Model) enter() (tea.Model, tea.Cmd) {
 		m.rebuild()
 		return m, nil
 	case r.Interactive():
-		m.message = msgInteractive
+		m.message = msgOpenInteractive
 		return m, nil
 	case r.Kind == RowSession && (r.Live == nil || r.Status.Kind == status.Stopped):
 		// Stopped, or no longer listed (deleted elsewhere, or the background service

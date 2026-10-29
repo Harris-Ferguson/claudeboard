@@ -49,8 +49,10 @@ Verified on 2026-10-28 against Claude Code 2.1.312. Everything claudeboard assum
 | Stop | `claude stop <shortId>` | Keeps the conversation and worktree |
 | Delete | `claude rm <shortId>` | Deletes the session and its worktree; may print a message about a retained worktree or unpushed commits, which the board shows verbatim |
 | Resume | `claude --bg --resume <sessionId>`, run in the session's directory | On a stopped session: prints `note: woke session <shortId> …` then the usual `backgrounded · <shortId> · <name>` line, keeping the same IDs. On a running session it starts a copy instead (`backgrounded · <newShortId>`, with no name), so claudeboard only resumes stopped sessions |
+| Continue elsewhere | `claude --bg --name <name> --resume <sessionId>`, run in the session's directory | Verified 2026-10-29. For a session open in an interactive terminal: starts a background copy with a new ID under `<name>`, carrying the conversation, and prints `note: session <id> is open in another Claude Code process, so this started a copy as <shortId>. The original conversation is unchanged.` For a background session, passing any option (such as `--name`) also starts a copy, because a background session keeps its own saved options; so claudeboard never uses this on background sessions |
 
 - `--bg` ignores `--session-id`. The full session ID is found by matching the short ID in the list.
+- Claude can't rename a session, and an interactive session drops out of `claude agents --json --all` once its terminal closes.
 - `--worktree <wt>` creates `<repo>/.claude/worktrees/<wt>` on branch `worktree-<wt>`. The session's reported `cwd` becomes the worktree path.
 
 List entries: `{pid, id, cwd, kind, sessionId, name, status, state, waitingFor}`. `id` is the short ID. `kind` is `"background"` or `"interactive"`; interactive entries carry `status` (`busy`/`idle`) but no `state` or `id`. A stopped background session is listed as `state: "stopped"` with no `pid` or `status`. A session that failed to start is listed as `state: "failed"`. Right after a launch, an entry can briefly appear with no `pid` yet, so a missing `pid` does not mean stopped.
@@ -212,6 +214,7 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
 | x | stop session (keeps conversation and worktree) |
 | r | resume a stopped session |
 | D | delete session and worktree, after a `y/N` confirmation |
+| m | move an Other session into a workflow (see below) |
 | a | archive / unarchive the selected workflow (hides it; does not stop its sessions) |
 | A | show / hide archived workflows |
 | p | show / hide preview |
@@ -225,7 +228,11 @@ Enter on a session:
 - **Running claudeboard session:** opens it with `claude attach`. Ctrl+Z inside the session returns to the board, with the same row selected and the data refreshed.
 - **Stopped claudeboard session:** resumes it, then opens it.
 - **Other background session:** opens it.
-- **Other interactive session:** shows "started in another terminal; switch to it there".
+- **Other interactive session:** says it runs in another terminal, and that `m` continues it here.
+
+`m` on an Other session opens the workflow picker (including "+ new workflow…"), then:
+- **Interactive session:** claudeboard starts `claude --bg --resume <sessionId> --name cb-<slug>-<n>` in its folder, records the copy in the workflow and opens it. The original stays open in its terminal until the user closes it; the footer says so. A session with no conversation yet has nothing to continue, so `m` says that instead.
+- **Background session:** recorded in the workflow as it is, keeping its ID and name (or its short ID if it has no name). Nothing is restarted.
 
 ### New session (`n`)
 

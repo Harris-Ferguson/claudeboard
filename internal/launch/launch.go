@@ -4,6 +4,7 @@ package launch
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"time"
 
@@ -25,6 +26,10 @@ type Request struct {
 	Repo     string // how the folder is shown: a config repo name, "scratch", or the path
 	Worktree bool
 	Prompt   string // empty: start idle and wait for the user
+	// Resume is a session ID whose conversation the new session continues. Claude
+	// starts a copy, leaving the original as it was; claudeboard uses it for an
+	// interactive session that is still open in another terminal.
+	Resume string
 }
 
 // How long Run waits for a new session to show up in `claude agents`.
@@ -67,6 +72,7 @@ func Run(ctx context.Context, l Launcher, st *store.Store, cfg config.Config, re
 			PermissionMode: cfg.Defaults.PermissionMode,
 			IDE:            cfg.Defaults.IDE,
 			Prompt:         req.Prompt,
+			Resume:         req.Resume,
 		})
 		if err != nil {
 			return err
@@ -84,6 +90,41 @@ func Run(ctx context.Context, l Launcher, st *store.Store, cfg config.Config, re
 		if err := st.Update(func(s *store.State) error { s.UpsertSession(sess); return nil }); err != nil {
 			return sess, err
 		}
+	}
+	return sess, nil
+}
+
+// Adopt records a background session claudeboard didn't start as part of workflow,
+// without restarting it: Claude can't rename a session, and resuming one with new
+// options starts a copy. The session keeps its name, or goes by its short ID when it
+// has none (as stopped sessions are listed).
+func Adopt(st *store.Store, cfg config.Config, workflow string, l claudecli.Session, now time.Time) (store.Session, error) {
+	if l.Kind != claudecli.KindBackground || l.SessionID == "" {
+		return store.Session{}, fmt.Errorf("only background sessions can be added to a workflow as they are")
+	}
+	sess := store.Session{SessionID: l.SessionID, ShortID: l.ShortID, Name: l.Name,
+		Repo: cfg.RepoName(l.Cwd), Dir: l.Cwd, Cwd: l.Cwd, CreatedAt: now}
+	if sess.Name == "" {
+		sess.Name = l.ShortID
+	}
+	err := st.Update(func(s *store.State) error {
+		wf, err := s.EnsureWorkflow(workflow, now)
+		if err != nil {
+			return err
+		}
+		sess.Workflow = wf.Slug
+		wf.LastRepo = sess.Repo
+		// Match by ID only: names aren't unique, and UpsertSession's name fallback
+		// would replace another session's record.
+		if existing := s.Session(sess.SessionID); existing != nil {
+			*existing = sess
+		} else {
+			s.Sessions = append(s.Sessions, sess)
+		}
+		return nil
+	})
+	if err != nil {
+		return store.Session{}, err
 	}
 	return sess, nil
 }

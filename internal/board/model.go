@@ -71,6 +71,7 @@ type newFlow struct {
 	input    textinput.Model
 	req      launch.Request
 	trusting bool // the user went to accept the trust prompt; don't ask again
+	move     *Row // the Other session being moved into a workflow; nil when starting one
 }
 
 // Model is the board's whole state.

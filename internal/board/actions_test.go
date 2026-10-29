@@ -33,7 +33,7 @@ func TestEnterOnInteractiveSessionExplains(t *testing.T) {
 	m, src := testModel(t, 100, 16)
 	m.cursor = 8
 	m, cmd := press(t, m, "enter")
-	if cmd != nil || m.message != msgInteractive || len(src.attached) != 0 {
+	if cmd != nil || m.message != msgOpenInteractive || !strings.Contains(m.message, "press m") || len(src.attached) != 0 {
 		t.Errorf("cmd %v, message %q", cmd, m.message)
 	}
 }
