@@ -23,7 +23,7 @@ Success criteria:
 | Built on Claude Code's background sessions (`claude --bg`, `claude agents --json`, `claude attach`) | Claude Code already keeps sessions alive, reports their state and manages worktrees (verified in a spike, section 4). tmux was the fallback |
 | Go, Bubble Tea v2, Bubbles, Lip Gloss | One fast-starting binary for both the board and the CLI |
 | No Claude Code hooks in v1 | `agents --json` gives status and transcripts give detail, so nothing is injected into sessions |
-| Tokens only, no cost estimates | User preference |
+| Tokens only, no cost estimates. Totals leave out cache reads (input + output + cache writes); the preview shows the full breakdown | User preference. Cache reads re-count the same context every turn and were 95%+ of real totals (e.g. 401M), which made totals meaningless (DX review, 2026-10-29) |
 | Install by cloning and running `go install` | Go is available at work |
 | PHPStorm: run in its terminal for v1; a native plugin is a later phase | The board works in PHPStorm's terminal from day one |
 
@@ -60,12 +60,13 @@ List entries: `{pid, id, cwd, kind, sessionId, name, status, state, waitingFor}`
 | From `agents --json` (and transcript) | Board shows |
 |---|---|
 | `state: working` | `● working` |
+| `state: working` with `status: idle` (a resumed session idling at its prompt) | `○ new` if no prompt sent yet, else `✓ done` |
 | `state: blocked` with `waitingFor` set | `! needs you — <waitingFor>` |
 | `state: blocked`, no `waitingFor`, no prompt sent yet | `○ new` |
 | `state: blocked`, no `waitingFor`, prompt already sent | `! needs you` |
 | `state: done` | `✓ done` |
 | interactive `status: busy` / `idle` | `● working` / `✓ done` |
-| `state: stopped`, or in `state.json` but not listed | `○ stopped` |
+| `state: stopped`, or in `state.json` but not listed | `◌ stopped` |
 | anything else | the raw `state` text, dimmed |
 
 "Prompt sent yet" means the transcript contains at least one user prompt.

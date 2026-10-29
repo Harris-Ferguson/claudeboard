@@ -37,7 +37,13 @@ cd claudeboard
 go install ./cmd/claudeboard
 ```
 
-That puts `claudeboard` in `$(go env GOPATH)/bin`, which needs to be on your `PATH`.
+That puts `claudeboard` in `$(go env GOPATH)/bin`. If your shell can't find it, add that
+folder to your `PATH` (for zsh, in `~/.zshrc`):
+
+```sh
+export PATH="$PATH:$(go env GOPATH)/bin"
+```
+
 To update later, run `git pull && go install ./cmd/claudeboard`. `claudeboard --version`
 shows which commit you're running.
 
@@ -62,7 +68,12 @@ Run `claudeboard`.
 | q | quit; sessions keep running |
 
 Statuses: `●` working, `!` needs you (with what it's waiting for), `✓` done (your turn),
-`○` new or stopped.
+`○` new (no prompt yet), `◌` stopped.
+
+Token counts on rows, workflows and in the header are the tokens each session added:
+input, output and cache writes. They leave out cache reads, which re-count the same
+context on every turn and would otherwise be 95% of the number. The preview shows the
+full breakdown (`in`, `out`, `cache r`, `w`).
 
 "Other sessions" lists Claude sessions claudeboard didn't start, such as ones you
 started in another terminal. You can preview them, and open, stop or delete the
@@ -76,6 +87,10 @@ claudeboard new -w payments-v2 -r api            # into a workflow, in a configu
 claudeboard new -w payments-v2 -r api --worktree # in its own git worktree
 claudeboard new -w bugs "fix the flaky test"     # with a prompt: starts in the background and returns
 ```
+
+Options can go before or after the prompt. `claudeboard new` tells you the session's name
+and ID before opening it, and how to get back to it after Ctrl+Z. Without a terminal
+(a script, an IDE run configuration) it needs a prompt, so sessions aren't left behind.
 
 ## Config
 
@@ -125,8 +140,10 @@ ide = false           # pass --ide so diffs open in your IDE
 
 ## Troubleshooting
 
-- **"isn't trusted yet"**: Claude Code won't start background sessions in a folder you
-  haven't trusted. Run `claude` there once and accept the prompt.
+- **"not trusted by Claude yet"**: Claude Code won't start background sessions in a folder
+  you haven't trusted. Both the board and `claudeboard new` offer to open `claude` there so
+  you can accept the trust prompt (type `/exit` afterwards); or run `claude` there yourself
+  once. The scratch folder needs this the first time you press `s`.
 - **"status stale"**: `claude agents --json` is failing or slow. Run it yourself to see why.
 - **A session shows "no messages yet" after you've talked to it**: was it started from
   inside another Claude session's shell? claudeboard removes the variables that turn
