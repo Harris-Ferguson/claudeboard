@@ -11,10 +11,11 @@ const (
 	ItemTool                   // a tool call, summarised
 )
 
-// Item is one line of the preview.
+// Item is one entry of the preview.
 type Item struct {
 	Kind ItemKind
-	Text string
+	Tool string // ItemTool: the tool's name, e.g. "Bash"
+	Text string // the prompt or reply; for a tool call, its most telling argument
 }
 
 // Usage is a token count split by type.

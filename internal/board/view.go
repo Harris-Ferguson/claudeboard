@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Harris-Ferguson/claudeboard/internal/status"
-	"github.com/Harris-Ferguson/claudeboard/internal/transcript"
 )
 
 var (
@@ -284,9 +283,7 @@ func (m Model) previewLines(r Row, width, height int) []string {
 	if !r.Snap.Found {
 		body = []string{styleFaint.Render(" no messages yet")}
 	}
-	for _, it := range r.Snap.Items {
-		body = append(body, itemLines(it, width-2)...)
-	}
+	body = append(body, bodyLines(r.Snap.Items, width-1)...)
 	avail := height - len(head)
 	if avail <= 0 {
 		return head[:max(0, height)]
@@ -305,27 +302,4 @@ func (m Model) workflowLines(r Row) []string {
 		lines = append(lines, " last folder: "+repoLabel(r.Workflow.LastRepo))
 	}
 	return append(lines, "", styleFaint.Render(" enter fold/unfold · n new session here · a archive"))
-}
-
-// itemLines wraps one preview item to width, capped at maxItemLines lines.
-func itemLines(it transcript.Item, width int) []string {
-	prefix := "• "
-	switch it.Kind {
-	case transcript.ItemPrompt:
-		prefix = "you: "
-	case transcript.ItemText:
-		prefix = "claude: "
-	}
-	text := clean(it.Text)
-	if it.Kind == transcript.ItemTool {
-		text = firstLine(text)
-	}
-	wrapped := strings.Split(ansi.Wrap(prefix+text, max(10, width), ""), "\n")
-	if len(wrapped) > maxItemLines {
-		wrapped = append(wrapped[:maxItemLines-1], "…")
-	}
-	for i, l := range wrapped {
-		wrapped[i] = " " + l
-	}
-	return wrapped
 }

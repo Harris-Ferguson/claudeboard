@@ -3,6 +3,7 @@ package transcript
 import (
 	"encoding/json"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -92,10 +93,13 @@ func (a *accumulator) add(line []byte, main bool) {
 					a.push(Item{Kind: ItemText, Text: t})
 				}
 			case "tool_use":
-				s := Summarize(b.Name, b.Input)
-				a.push(Item{Kind: ItemTool, Text: s})
+				if hiddenTools[b.Name] {
+					continue
+				}
+				label, detail := describe(b.Name, b.Input, true)
+				a.push(Item{Kind: ItemTool, Tool: label, Text: detail})
 				if b.ID != "" {
-					a.pending[b.ID] = s
+					a.pending[b.ID] = Summarize(b.Name, b.Input)
 					a.pendingOrder = append(a.pendingOrder, b.ID)
 				}
 			}
@@ -177,16 +181,42 @@ func (a *accumulator) snapshot() Snapshot {
 	}
 }
 
+// hiddenTools are calls Claude makes to manage itself rather than to do the work, such
+// as loading its own tool definitions. The preview leaves them out.
+var hiddenTools = map[string]bool{"ToolSearch": true}
+
+// maxDetail is the most of a tool call's argument kept; the board cuts it to fit.
+const maxDetail = 120
+
+// leadingCd matches "cd <folder> &&" (or ";") at the start of a command. Sessions often
+// cd into their own folder first, which says nothing in a one-line summary.
+var leadingCd = regexp.MustCompile(`^cd\s+("[^"]*"|'[^']*'|\S+)\s*(&&|;)\s*`)
+
+// fallbackArgs are tried in order for tools claudeboard doesn't know, such as MCP tools.
+var fallbackArgs = []string{"title", "subject", "description", "file_path", "path", "url", "query", "skill", "command", "pattern", "prompt"}
+
 // Summarize describes a tool call in a few words: the tool name plus its most telling
-// argument (a file's base name, a shortened command, or a search pattern).
+// argument (a file's base name, a command, a search pattern, a URL). For Bash that is
+// the command, since it's what a permission prompt asks about.
 func Summarize(name string, input json.RawMessage) string {
+	label, detail := describe(name, input, false)
+	if detail == "" {
+		return label
+	}
+	return label + " " + detail
+}
+
+// describe splits a tool call into a label (the tool's name) and its most telling
+// argument. With narrate, a Bash command is replaced by Claude's own description of it,
+// which reads better in the preview than a long command line.
+func describe(name string, input json.RawMessage, narrate bool) (label, detail string) {
 	var in map[string]any
 	_ = json.Unmarshal(input, &in)
 	arg := func(k string) string {
 		s, _ := in[k].(string)
-		return s
+		return strings.Join(strings.Fields(s), " ")
 	}
-	var detail string
+	label = name
 	switch name {
 	case "Read", "Edit", "Write", "MultiEdit":
 		if p := arg("file_path"); p != "" {
@@ -196,16 +226,34 @@ func Summarize(name string, input json.RawMessage) string {
 		if p := arg("notebook_path"); p != "" {
 			detail = filepath.Base(p)
 		}
-	case "Bash":
-		detail = strings.Join(strings.Fields(arg("command")), " ")
-		if r := []rune(detail); len(r) > 60 {
-			detail = string(r[:60]) + "…"
+	case "Bash", "Monitor":
+		detail = leadingCd.ReplaceAllString(arg("command"), "")
+		if d := arg("description"); narrate && d != "" {
+			detail = d
 		}
 	case "Grep", "Glob":
 		detail = arg("pattern")
+	case "Task", "Agent":
+		detail = arg("description")
+	case "AskUserQuestion":
+		if qs, _ := in["questions"].([]any); len(qs) > 0 {
+			if q, _ := qs[0].(map[string]any); q != nil {
+				s, _ := q["question"].(string)
+				detail = strings.Join(strings.Fields(s), " ")
+			}
+		}
+	default:
+		if rest, ok := strings.CutPrefix(name, "mcp__"); ok {
+			label = strings.ReplaceAll(rest, "__", " ")
+		}
+		for _, k := range fallbackArgs {
+			if detail = arg(k); detail != "" {
+				break
+			}
+		}
 	}
-	if detail == "" {
-		return name
+	if r := []rune(detail); len(r) > maxDetail {
+		detail = string(r[:maxDetail]) + "…"
 	}
-	return name + " " + detail
+	return label, detail
 }

@@ -38,8 +38,8 @@ func fixture() (store.State, []claudecli.Session, map[string]transcript.Snapshot
 			Usage: transcript.Usage{Input: 1200, Output: 8400, CacheRead: 2100, CacheWrite: 2400},
 			Items: []transcript.Item{
 				{Kind: transcript.ItemPrompt, Text: "hook PaymentForm into checkout"},
-				{Kind: transcript.ItemTool, Text: "Edit CheckoutPage.vue"},
-				{Kind: transcript.ItemTool, Text: "Bash npm test"},
+				{Kind: transcript.ItemTool, Tool: "Edit", Text: "CheckoutPage.vue"},
+				{Kind: transcript.ItemTool, Tool: "Bash", Text: "npm test"},
 				{Kind: transcript.ItemText, Text: "Wired it in. Running the tests to check checkout still works."},
 			}},
 		"id-3": {Found: true, FirstPrompt: "plan the search rewrite", Prompts: 1,

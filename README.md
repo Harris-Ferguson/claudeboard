@@ -14,8 +14,8 @@ running when you quit the board.
 │ ▸ ! web  hook PaymentForm… 12k │ ! needs you — permission prompt: Bash npm t… │
 │ q4-search                  12k │                                              │
 │   ✓ api  plan the search…  12k │ you: hook PaymentForm into checkout          │
-│ quick                          │ • Edit CheckoutPage.vue                      │
-│   ○ scratch  new session       │ • Bash npm test                              │
+│ quick                          │   › Edit  CheckoutPage.vue                   │
+│   ○ scratch  new session       │   › Bash  npm test                           │
 │ Other sessions                 │ claude: Wired it in. Running the tests…      │
 │   ● arbybot-8d                 │                                              │
 ├────────────────────────────────┴──────────────────────────────────────────────┤

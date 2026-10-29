@@ -4,10 +4,10 @@
 │  ▸ ! web  hook PaymentForm into ch… 12k│ ! needs you — permission prompt: Bash npm test          │
 │  q4-search                          12k│                                                         │
 │    ✓ api  plan the search rewrite   12k│ you: hook PaymentForm into checkout                     │
-│  quick                                 │ • Edit CheckoutPage.vue                                 │
-│    ○ scratch  new session              │ • Bash npm test                                         │
+│  quick                                 │   › Edit  CheckoutPage.vue                              │
+│    ○ scratch  new session              │   › Bash  npm test                                      │
 │  Other sessions                        │ claude: Wired it in. Running the tests to check         │
-│    ● arbybot-8d  new session           │ checkout still works.                                   │
+│    ● arbybot-8d  new session           │   checkout still works.                                 │
 │                                        │                                                         │
 │                                        │                                                         │
 │                                        │                                                         │
