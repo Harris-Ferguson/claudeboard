@@ -21,6 +21,8 @@ func (m Model) commandKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.startNew()
 	case "s":
 		return m.quick()
+	case "N":
+		return m.quickNew()
 	}
 	return m, nil
 }

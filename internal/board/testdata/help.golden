@@ -4,7 +4,7 @@
 │    ! web  hook PaymentForm into ch… 12k│ ↑↓ / j k   move                                         │
 │  q4-search                          12k│ enter      open session (ctrl+z back) / fold            │
 │    ✓ api  plan the search rewrite   12k│ tab        next session that needs you                  │
-│  quick                                 │ n          new session                                  │
+│  quick                                 │ n / N      new session / at once, random name           │
 │    ○ scratch  new session              │ s          quick one-off in the scratch folder          │
 │  Other sessions                        │ x / r      stop / resume (keeps the conversation)       │
 │    ● arbybot-8d  new session           │ D          delete session and its worktree              │
