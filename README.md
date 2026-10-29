@@ -159,13 +159,23 @@ ide = false           # pass --ide so diffs open in your IDE
 ## How it works
 
 claudeboard runs `claude --bg` to start sessions, polls `claude agents --json` for their
-state, and hands your terminal to `claude attach` to open one (with `DISABLE_TELEMETRY=1`
-for that viewer only: otherwise it waits to send telemetry before handing the terminal
-back, which made Ctrl+Z take 0.3 s or more). It reads each session's
+state, and hands your terminal to `claude attach` to open one. It reads each session's
 conversation file under `~/.claude/projects/` for the preview and token counts, and
 keeps its own list of workflows in `~/.claudeboard/state.json`. Sessions it starts are
 named `cb-<workflow>-<n>`, so they're recognisable in `claude agents` too. The design is
 in `docs/superpowers/specs/2026-10-28-claudeboard-design.md`.
+
+`claude attach` runs with `DISABLE_TELEMETRY=1`: otherwise it waits to send telemetry
+after Ctrl+Z, which made going back to the board take 0.3 s or more. While you're
+attached, that viewer, including the agent view you reach with ← inside it, sends no
+usage telemetry or error reports and fetches no feature flags. Your sessions run in
+Claude's background service, which keeps the environment of the command that started it.
+`claude attach` starts that service if it isn't running, and the service would inherit
+`DISABLE_TELEMETRY=1`, so before opening a session Claude doesn't list as running
+(stopped, failed, or no longer listed), the board resumes it with
+`claude --bg --resume`, which starts the service, if needed, with your own environment.
+One case remains: if the service stops while you're attached and the viewer restarts
+it, that service and the sessions it runs inherit `DISABLE_TELEMETRY=1` until it exits.
 
 ## Development
 
