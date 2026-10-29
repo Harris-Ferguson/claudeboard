@@ -108,8 +108,9 @@ func TestResolveRepo(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(cwd, "sub"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	cfg := Config{ScratchDir: "/s", Repos: map[string]string{"api": "/a"}}
-	for arg, want := range map[string]string{"": cwd, "api": "/a", "scratch": "/s", "sub": filepath.Join(cwd, "sub")} {
+	api := t.TempDir()
+	cfg := Config{ScratchDir: "/s", Repos: map[string]string{"api": api}}
+	for arg, want := range map[string]string{"": cwd, "api": api, "scratch": "/s", "sub": filepath.Join(cwd, "sub")} {
 		got, err := cfg.ResolveRepo(arg, cwd)
 		if err != nil || got != want {
 			t.Errorf("ResolveRepo(%q) = %q, %v; want %q", arg, got, err, want)
