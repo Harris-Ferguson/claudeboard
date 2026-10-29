@@ -3,6 +3,7 @@ package board
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Harris-Ferguson/claudeboard/internal/claudecli"
 )
@@ -143,5 +144,36 @@ func TestArchiveToggles(t *testing.T) {
 	st, _, _ := m.deps.Store.Load()
 	if !st.Workflow("payments-v2").Archived || !strings.HasPrefix(m.message, "archived payments-v2") {
 		t.Errorf("archived %v, message %q", st.Workflow("payments-v2").Archived, m.message)
+	}
+}
+
+func TestEnterResumesStoppedSession(t *testing.T) {
+	m, src := testModel(t, 100, 16)
+	m.live[2].State, m.live[2].PID, m.live[2].Status = "stopped", 0, ""
+	m.rebuild()
+	m.cursor = 4
+	m, cmd := press(t, m, "enter")
+	if cmd == nil {
+		t.Fatal("no command")
+	}
+	msg := cmd()
+	if len(src.resumed) != 1 || src.resumed[0] != "id-3 /work/api" {
+		t.Fatalf("resumed %v; a stopped session should be resumed, then opened", src.resumed)
+	}
+	if _, cmd = send(m, msg); cmd == nil || len(src.attached) != 1 {
+		t.Errorf("not opened after resuming: attached %v", src.attached)
+	}
+}
+
+func TestNoResumeBeforeClaudeHasListedSessions(t *testing.T) {
+	m, src := testModel(t, 100, 16)
+	m.lastOK, m.live = time.Time{}, nil // no listing yet, so every row looks stopped
+	m.rebuild()
+	m.cursor = 1
+	for _, k := range []string{"enter", "r"} {
+		m2, cmd := press(t, m, k)
+		if cmd != nil || len(src.resumed) != 0 || !strings.Contains(m2.message, "waiting for") {
+			t.Errorf("%s: cmd %v, resumed %v, message %q", k, cmd, src.resumed, m2.message)
+		}
 	}
 }

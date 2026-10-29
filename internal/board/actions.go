@@ -11,7 +11,12 @@ import (
 	"github.com/Harris-Ferguson/claudeboard/internal/store"
 )
 
-const msgInteractive = "that session runs in another terminal; switch to it there"
+const (
+	msgInteractive = "that session runs in another terminal; switch to it there"
+	// Until Claude has listed its sessions once, every row looks stopped, and resuming
+	// a session that is in fact running would start a copy of it.
+	msgNoListingYet = "still waiting for claude agents to list sessions; try again in a moment"
+)
 
 // actionDoneMsg reports the result of a stop, delete, resume or archive.
 type actionDoneMsg struct {
@@ -65,9 +70,13 @@ func (m Model) enter() (tea.Model, tea.Cmd) {
 	case r.Interactive():
 		m.message = msgInteractive
 		return m, nil
-	case r.Kind == RowSession && r.Live == nil:
-		// Claude no longer lists it (deleted elsewhere, or its background service
+	case r.Kind == RowSession && (r.Live == nil || r.Status.Kind == status.Stopped):
+		// Stopped, or no longer listed (deleted elsewhere, or the background service
 		// restarted): resume from the saved conversation, then open it.
+		if m.lastOK.IsZero() {
+			m.message = msgNoListingYet
+			return m, nil
+		}
 		if r.Session.SessionID == "" {
 			m.message = "can't reopen " + r.Name() + ": Claude doesn't list it and its session ID is unknown"
 			return m, nil
@@ -75,7 +84,6 @@ func (m Model) enter() (tea.Model, tea.Cmd) {
 		m.message = "resuming " + r.Name() + "…"
 		return m, m.resumeCmd(r, true)
 	}
-	// Stopped background sessions are listed too; `claude attach` wakes them.
 	return m, m.attach(r.ShortID())
 }
 
@@ -130,6 +138,9 @@ func (m Model) resume() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	switch {
+	case m.lastOK.IsZero():
+		m.message = msgNoListingYet
+		return m, nil
 	case r.Status.Kind != status.Stopped:
 		m.message = r.Name() + " is already running"
 		return m, nil
