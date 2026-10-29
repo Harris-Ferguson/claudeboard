@@ -127,10 +127,21 @@ func (a *accumulator) add(line []byte, main bool) {
 	}
 }
 
-// isSystemText spots user-role text that Claude Code writes itself: command wrappers,
-// reminders and interruption notices.
+// systemPrefixes start the user-role text that Claude Code writes itself: slash-command
+// and shell wrappers, reminders, notifications and interruption notices. Anything else,
+// including pasted code that starts with "<", is a real prompt.
+var systemPrefixes = []string{
+	"<command-", "<local-command-", "<bash-", "<system-", "<task-notification",
+	"<user-prompt-submit-hook", "[Request interrupted",
+}
+
 func isSystemText(t string) bool {
-	return strings.HasPrefix(t, "<") || strings.HasPrefix(t, "[Request interrupted")
+	for _, p := range systemPrefixes {
+		if strings.HasPrefix(t, p) {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *accumulator) push(it Item) {

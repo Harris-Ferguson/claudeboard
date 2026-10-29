@@ -98,3 +98,17 @@ func TestSummarize(t *testing.T) {
 		}
 	}
 }
+
+func TestPromptsThatStartWithMarkupAreKept(t *testing.T) {
+	a := newAccumulator()
+	for _, content := range []string{"<?php echo 'hi';", "<template>fix this</template>"} {
+		a.add([]byte(fmt.Sprintf(`{"type":"user","message":{"content":%q}}`, content)), true)
+	}
+	for _, wrapper := range []string{"<command-name>/model</command-name>", "<local-command-stdout>ok</local-command-stdout>", "<bash-input>ls</bash-input>"} {
+		a.add([]byte(fmt.Sprintf(`{"type":"user","message":{"content":%q}}`, wrapper)), true)
+	}
+	s := a.snapshot()
+	if s.Prompts != 2 || s.FirstPrompt != "<?php echo 'hi';" {
+		t.Errorf("Prompts = %d, FirstPrompt = %q; pasted code is a real prompt, Claude Code's wrappers aren't", s.Prompts, s.FirstPrompt)
+	}
+}
