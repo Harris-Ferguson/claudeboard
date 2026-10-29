@@ -197,3 +197,77 @@ func TestResumingMessageClearsOnceOpened(t *testing.T) {
 		t.Errorf("message %q", m.message)
 	}
 }
+
+// withOther adds a background session claudeboard didn't start, listed in state, and
+// selects it.
+func withOther(t *testing.T, state string) (Model, *stubSource) {
+	t.Helper()
+	m, src := testModel(t, 100, 16)
+	m.live = append(m.live, claudecli.Session{ShortID: "ffff0007", SessionID: "id-7", Cwd: "/work/tools", Name: "manual",
+		Kind: claudecli.KindBackground, State: state})
+	m.rebuild()
+	m.cursor = len(m.rows) - 1
+	return m, src
+}
+
+// claude attach starts Claude's background service when it isn't running, and the
+// service would keep the viewer's DISABLE_TELEMETRY=1. So a session that isn't running
+// is resumed first, which keeps its ID, and then opened.
+func TestEnterResumesOtherBackgroundSessionThatIsNotRunning(t *testing.T) {
+	for _, state := range []string{"stopped", "failed"} {
+		t.Run(state, func(t *testing.T) {
+			m, src := withOther(t, state)
+			m, cmd := press(t, m, "enter")
+			if cmd == nil {
+				t.Fatal("no command")
+			}
+			msg := cmd()
+			if len(src.resumed) != 1 || src.resumed[0] != "id-7 /work/tools" || len(src.attached) != 0 {
+				t.Fatalf("resumed %v, attached %v; it should be resumed before it is opened", src.resumed, src.attached)
+			}
+			if _, cmd = send(m, msg); cmd == nil || len(src.attached) != 1 || src.attached[0] != "res00001" {
+				t.Errorf("after resuming: attached %v", src.attached)
+			}
+		})
+	}
+}
+
+func TestEnterOpensRunningOtherBackgroundSession(t *testing.T) {
+	for _, state := range []string{"working", "blocked", "done"} {
+		t.Run(state, func(t *testing.T) {
+			m, src := withOther(t, state)
+			_, cmd := press(t, m, "enter")
+			if cmd == nil || len(src.resumed) != 0 || len(src.attached) != 1 || src.attached[0] != "ffff0007" {
+				t.Errorf("cmd %v, resumed %v, attached %v", cmd, src.resumed, src.attached)
+			}
+		})
+	}
+}
+
+func TestEnterResumesFailedSession(t *testing.T) {
+	m, src := testModel(t, 100, 16)
+	m.live[2].State, m.live[2].PID, m.live[2].Status = "failed", 0, ""
+	m.rebuild()
+	m.cursor = 4
+	m, cmd := press(t, m, "enter")
+	if cmd == nil {
+		t.Fatal("no command")
+	}
+	msg := cmd()
+	if len(src.resumed) != 1 || src.resumed[0] != "id-3 /work/api" || len(src.attached) != 0 {
+		t.Fatalf("resumed %v, attached %v; it should be resumed before it is opened", src.resumed, src.attached)
+	}
+	if _, cmd = send(m, msg); cmd == nil || len(src.attached) != 1 || src.attached[0] != "res00001" {
+		t.Errorf("after resuming: attached %v", src.attached)
+	}
+}
+
+func TestEnterOnStoppedOtherSessionWithNoFolder(t *testing.T) {
+	m, src := withOther(t, "stopped")
+	m.live[len(m.live)-1].Cwd = ""
+	m.rebuild()
+	m, cmd := press(t, m, "enter")
+	if cmd != nil || len(src.resumed) != 0 || len(src.attached) != 0 || !strings.Contains(m.message, "can't reopen manual") {
+		t.Errorf("cmd %v, resumed %v, attached %v, message %q", cmd, src.resumed, src.attached, m.message)
+	}
+}
