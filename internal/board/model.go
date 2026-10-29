@@ -20,6 +20,9 @@ const (
 	refreshEvery = 1500 * time.Millisecond
 	staleAfter   = 5 * time.Second
 	narrowWidth  = 90 // below this the preview is hidden unless toggled with p
+	// lookTime is how long the cursor rests on a session, with the preview showing,
+	// before the session counts as seen.
+	lookTime = time.Second
 )
 
 // Source is everything the board needs from Claude Code. claudecli.CLI implements it;
@@ -108,6 +111,9 @@ type Model struct {
 	// seenAfterAttach is the short ID of the session the user just came back from; the
 	// next refresh marks it seen.
 	seenAfterAttach string
+	// selKey is the row the cursor is on, and selSince when it got there.
+	selKey   string
+	selSince time.Time
 
 	mode       mode
 	flow       newFlow
@@ -165,6 +171,7 @@ func (m *Model) rebuild() {
 	}
 	m.skipHeader(1)
 	m.ensureVisible()
+	m.noteCursor()
 }
 
 // skipHeader moves the cursor off the "Other sessions" heading, in direction dir if
@@ -188,6 +195,7 @@ func (m *Model) move(d int) {
 	m.skipHeader(d)
 	m.previewScroll = 0
 	m.ensureVisible()
+	m.noteCursor()
 }
 
 // ensureVisible scrolls the left pane so the cursor's row is on screen.

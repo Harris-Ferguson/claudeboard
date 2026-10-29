@@ -3,6 +3,7 @@ package board
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
@@ -26,6 +27,13 @@ func unreadModel(t *testing.T, w int, seen map[string]int) (Model, *stubSource) 
 
 func refreshWith(m Model) refreshedMsg {
 	return refreshedMsg{state: m.state, live: m.live, snaps: m.snaps, readers: m.readers, at: testNow}
+}
+
+// clock starts the board's time at testNow and returns a function that moves it on.
+func clock(m *Model) func(time.Duration) {
+	now := testNow
+	m.deps.Now = func() time.Time { return now }
+	return func(d time.Duration) { now = now.Add(d) }
 }
 
 func TestFinishedSessionWithNewActivityIsUnread(t *testing.T) {
@@ -57,12 +65,23 @@ func TestCaughtUpSessionIsNotUnread(t *testing.T) {
 	}
 }
 
-func TestSelectingASessionWithThePreviewMarksItSeen(t *testing.T) {
+func TestRestingOnASessionWithThePreviewMarksItSeen(t *testing.T) {
 	m, _ := unreadModel(t, 100, map[string]int{"id-1": 5, "id-2": 5, "id-3": 1})
+	wait := clock(&m)
 	m.cursor = 3
 	m, cmd := press(t, m, "down") // onto cb-q4-search-1
+	if !m.rows[4].Unread || cmd != nil {
+		t.Fatalf("unread %v, cmd %v; selecting it isn't looking at it yet", m.rows[4].Unread, cmd)
+	}
+	wait(900 * time.Millisecond)
+	m, _ = send(m, refreshWith(m))
+	if !m.rows[4].Unread {
+		t.Fatal("marked seen before the cursor had rested on it for a second")
+	}
+	wait(time.Second)
+	m, cmd = send(m, refreshWith(m))
 	if m.rows[4].Unread || m.state.Seen["id-3"] != 3 {
-		t.Fatalf("unread %v, seen %d; selecting it with the preview showing should count", m.rows[4].Unread, m.state.Seen["id-3"])
+		t.Fatalf("unread %v, seen %d; resting on it with the preview showing should count", m.rows[4].Unread, m.state.Seen["id-3"])
 	}
 	if cmd == nil {
 		t.Fatal("no command to save it")
@@ -81,10 +100,50 @@ func TestSelectingASessionWithThePreviewMarksItSeen(t *testing.T) {
 	}
 }
 
+func TestMovingPastAnUnreadSessionLeavesItUnread(t *testing.T) {
+	m, _ := unreadModel(t, 100, map[string]int{"id-1": 5, "id-2": 1, "id-3": 1})
+	wait := clock(&m)
+	m.cursor = 1
+	for range 3 { // past cb-payments-v2-2 and q4-search, onto cb-q4-search-1
+		m, _ = press(t, m, "down")
+		wait(500 * time.Millisecond)
+		m, _ = send(m, refreshWith(m))
+	}
+	if !m.rows[2].Unread || m.state.Seen["id-2"] != 1 {
+		t.Errorf("cb-payments-v2-2: unread %v, seen %d; the cursor only went past it", m.rows[2].Unread, m.state.Seen["id-2"])
+	}
+	if !m.rows[4].Unread {
+		t.Error("cb-q4-search-1 was marked seen half a second after the cursor got there")
+	}
+}
+
+func TestCursorMovedByARefreshStartsTheWaitAgain(t *testing.T) {
+	m, _ := unreadModel(t, 100, map[string]int{"id-1": 5, "id-2": 1, "id-3": 3})
+	wait := clock(&m)
+	m, _ = press(t, m, "down") // cb-payments-v2-1
+	wait(2 * time.Second)
+	// cb-payments-v2-1 was deleted elsewhere, so the cursor lands on cb-payments-v2-2.
+	gone := refreshWith(m)
+	gone.state.Sessions = gone.state.Sessions[1:]
+	gone.live = gone.live[1:]
+	m, _ = send(m, gone)
+	if r, _ := m.selected(); r.Session.Name != "cb-payments-v2-2" || !r.Unread {
+		t.Fatalf("selected %s, unread %v; the cursor has only just got there", r.Name(), r.Unread)
+	}
+	wait(time.Second)
+	m, _ = send(m, gone)
+	if r, _ := m.selected(); r.Unread {
+		t.Errorf("%s is still unread after a second on it", r.Name())
+	}
+}
+
 func TestNarrowScreenSelectionDoesNotMarkSeen(t *testing.T) {
 	m, _ := unreadModel(t, 70, map[string]int{"id-1": 5, "id-2": 5, "id-3": 1})
+	wait := clock(&m)
 	m.cursor = 3
 	m, _ = press(t, m, "down")
+	wait(2 * time.Second)
+	m, _ = send(m, refreshWith(m))
 	if !m.rows[4].Unread {
 		t.Error("with the preview hidden, selecting a session isn't seeing it")
 	}

@@ -214,8 +214,7 @@ func (m Model) listKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	default:
 		return m.commandKey(k)
 	}
-	cmd := m.noteSeen("")
-	return m, cmd
+	return m, nil
 }
 
 // nextWaiting moves to the next session (after the cursor, wrapping) that needs you.
@@ -226,6 +225,7 @@ func (m *Model) nextWaiting() {
 		if r := m.rows[j]; (r.Kind == RowSession || r.Kind == RowOther) && r.Status.Kind == status.NeedsYou {
 			m.cursor, m.previewScroll = j, 0
 			m.ensureVisible()
+			m.noteCursor()
 			return
 		}
 	}
