@@ -48,12 +48,12 @@ Verified on 2026-10-28 against Claude Code 2.1.312. Everything claudeboard assum
 | Open | `claude attach <shortId>` | Fully drawn in under 1 s. Ctrl+Z exits it with code 0 and the session keeps running. Left arrow inside a session opens Claude's own agent view |
 | Stop | `claude stop <shortId>` | Keeps the conversation and worktree |
 | Delete | `claude rm <shortId>` | Deletes the session and its worktree; may print a message about a retained worktree or unpushed commits, which the board shows verbatim |
-| Resume | `claude --bg --resume <sessionId>`, run in the session's directory | Continues under the same session ID |
+| Resume | `claude --bg --resume <sessionId>`, run in the session's directory | On a stopped session: prints `note: woke session <shortId> …` then the usual `backgrounded · <shortId> · <name>` line, keeping the same IDs. On a running session it starts a copy instead (`backgrounded · <newShortId>`, with no name), so claudeboard only resumes stopped sessions |
 
 - `--bg` ignores `--session-id`. The full session ID is found by matching the short ID in the list.
 - `--worktree <wt>` creates `<repo>/.claude/worktrees/<wt>` on branch `worktree-<wt>`. The session's reported `cwd` becomes the worktree path.
 
-List entries: `{pid, id, cwd, kind, sessionId, name, status, state, waitingFor}`. `id` is the short ID. `kind` is `"background"` or `"interactive"`; interactive entries carry `status` (`busy`/`idle`) but no `state`.
+List entries: `{pid, id, cwd, kind, sessionId, name, status, state, waitingFor}`. `id` is the short ID. `kind` is `"background"` or `"interactive"`; interactive entries carry `status` (`busy`/`idle`) but no `state` or `id`. A stopped background session is listed as `state: "stopped"` with no `pid` or `status`. A session that failed to start is listed as `state: "failed"`. Right after a launch, an entry can briefly appear with no `pid` yet, so a missing `pid` does not mean stopped.
 
 ### Status mapping
 
@@ -65,7 +65,7 @@ List entries: `{pid, id, cwd, kind, sessionId, name, status, state, waitingFor}`
 | `state: blocked`, no `waitingFor`, prompt already sent | `! needs you` |
 | `state: done` | `✓ done` |
 | interactive `status: busy` / `idle` | `● working` / `✓ done` |
-| in `state.json` but not listed, or listed with no `pid` | `○ stopped` |
+| `state: stopped`, or in `state.json` but not listed | `○ stopped` |
 | anything else | the raw `state` text, dimmed |
 
 "Prompt sent yet" means the transcript contains at least one user prompt.
@@ -86,7 +86,7 @@ List entries: `{pid, id, cwd, kind, sessionId, name, status, state, waitingFor}`
 - The background service keeps the environment of whatever process started it. Environment variables set when launching a session do not reach that session, so per-session data is never passed through the environment.
 - Launching from inside a Claude Code session inherits marker variables that turn off transcript saving. claudeboard removes exactly these from the environment of every `claude` command it runs: `CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION`, `CLAUDE_CODE_ENTRYPOINT`, `CLAUDE_CODE_EXECPATH`, `CLAUDE_CODE_MESSAGING_SOCKET`, `CLAUDE_CODE_MESSAGING_TOKEN`, `CLAUDE_CODE_SESSION_ATTENDED`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_EFFORT`, `CLAUDE_PID`. Other `CLAUDE_CODE_*` and `ANTHROPIC_*` variables (for example a company's provider settings) are left alone.
 - `claude logs` prints raw terminal output with spinner frames and is not used.
-- Not yet verified: what `--all` reports for stopped sessions, and whether `--ide` works from background sessions.
+- Not yet verified: whether `--ide` works from background sessions.
 
 ## 5. Architecture
 
@@ -119,7 +119,7 @@ Tool calls are summarised as the tool name plus one key argument: the file's bas
 **board.** The data sources are:
 - **Live status:** `claudecli.List` every 1.5 s. It runs in the background, the next check is skipped while one is still running, and it times out after 5 s.
 - **Transcripts:** readers updated on the same tick, giving token totals for all sessions and preview data for the selected one.
-- **The store:** re-read when `state.json`'s modification time changes.
+- **The store:** re-read on every refresh. The file is small, so this is simpler than watching for changes.
 
 Store sessions are joined to listed sessions on `sessionId`. Listed sessions that are not in the store go into an "Other sessions" group.
 
@@ -128,6 +128,9 @@ Store sessions are joined to listed sessions on `sessionId`. Listed sessions tha
 `~/.claudeboard/config.toml`:
 
 ```toml
+# Where quick one-offs run. Default: <claudeboard home>/scratch
+# scratch_dir = "~/.claudeboard/scratch"
+
 # Repos you start sessions in: name = path
 [repos]
 # api = "~/work/api"
@@ -137,9 +140,9 @@ Store sessions are joined to listed sessions on `sessionId`. Listed sessions tha
 model = ""            # empty = Claude Code's default
 permission_mode = ""  # empty = Claude Code's default
 ide = false           # pass --ide so diffs open in your IDE (untested with background sessions)
-
-scratch_dir = "~/.claudeboard/scratch"   # where quick one-offs run
 ```
+
+(`scratch_dir` has to come before the first `[table]`; in TOML, keys below a table header belong to that table.)
 
 `~/.claudeboard/state.json`:
 
@@ -165,7 +168,7 @@ scratch_dir = "~/.claudeboard/scratch"   # where quick one-offs run
 - **Session name:** `cb-<workflow-slug>-<n>`, where `n` is one more than the highest `n` used in that workflow.
 - **Worktree name:** `<workflow-slug>-<n>`.
 
-**Recovery.** If `state.json` cannot be parsed, it is renamed to `state.json.corrupt-<unix-time>` and the board starts empty. Every listed session whose name matches `cb-<slug>-<n>` is then re-linked to workflow `<slug>` with `dir` set to its reported `cwd`. The slug is the text between `cb-` and the last `-`.
+**Re-linking.** On every refresh, any listed session whose name matches `cb-<slug>-<n>` but which `state.json` doesn't know is adopted. It goes into workflow `<slug>` (created if missing), with `dir` set to its reported `cwd`. The slug is the text between `cb-` and the last `-`. A known session whose short ID changed gets the new one. If `state.json` cannot be parsed, it is renamed to `state.json.corrupt-<unix-time>` and the board starts empty; re-linking then restores the sessions that are still listed.
 
 ## 7. The board
 
@@ -271,7 +274,7 @@ No automated test runs the real `claude`.
 - **Naming:** slug, session name, worktree name, and re-link parsing.
 - **store:** load/save round trip, concurrent `Update` calls, and corrupt-file recovery.
 - **config:** defaults, `~` expansion, and creating the example file.
-- **board:** model tests against an in-memory data source built from the fixtures, plus a few `teatest` reference screens (normal, needs-you, narrow).
+- **board:** model tests against an in-memory data source built from the fixtures, plus a few reference screens (normal, needs-you, narrow). These render `View()`, strip the colours, and compare the result with saved files under `testdata/`.
 - **GitHub Actions:** runs `go vet ./...` and `go test ./...` on every push to `main`.
 - **README first-run checklist** for the real environment:
   - launch, attach and Ctrl+Z
@@ -294,5 +297,5 @@ In PHPStorm, Esc moves focus to the editor by default instead of reaching Claude
 ## 12. Risks
 
 - **Claude Code's `agents --json` and transcript formats are undocumented** and may change. They are confined to two packages, pinned by fixture tests, and the board warns on versions older than the one verified.
-- **Unverified behaviour:** `--ide` from background sessions, and how stopped sessions appear in `--all`. The first is a config flag, off by default, plus a checklist item. The second is checked at the start of implementation.
+- **Unverified behaviour:** `--ide` from background sessions. It is a config flag, off by default, plus a checklist item.
 - **The cost of running `claude agents --json` every 1.5 s** is unmeasured. It will be measured early, and the interval raised if needed.
