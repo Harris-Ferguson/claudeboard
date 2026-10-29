@@ -74,6 +74,10 @@ func TestLaunchArgs(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("full = %q", got)
 	}
+	got = LaunchArgs(LaunchOpts{Name: "cb-w-4", Resume: "5d02d962-f2cc"})
+	if want := []string{"--bg", "--name", "cb-w-4", "--resume", "5d02d962-f2cc"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("resume = %q", got)
+	}
 	got = LaunchArgs(LaunchOpts{Name: "cb-w-3", Prompt: "-rf is scary"})
 	if got[len(got)-1] != " -rf is scary" {
 		t.Errorf("a prompt starting with - must not look like a flag: %q", got)

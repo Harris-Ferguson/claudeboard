@@ -61,6 +61,7 @@ Run `claudeboard`.
 | x | stop the session (keeps its conversation and worktree) |
 | r | resume a stopped session in the background |
 | D | delete the session and its worktree (asks first) |
+| m | move a session from "Other sessions" into a workflow. One open in another terminal is continued in a background copy (`claude --bg --resume`), which opens straight away; close the original afterwards. A background session is added as it is |
 | a / A | archive a workflow / show archived workflows |
 | p | show or hide the preview (hidden by default below 90 columns) |
 | PgUp / PgDn | scroll the preview |

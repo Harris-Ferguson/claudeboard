@@ -177,3 +177,50 @@ func TestRunDoesNotReuseTheNumberOfADeletedSession(t *testing.T) {
 		t.Errorf("session = %+v, %v; want cb-w-3 in worktree w-3", sess, err)
 	}
 }
+
+func TestRunCanContinueAnotherConversation(t *testing.T) {
+	l, st := &stubLauncher{}, store.Open(t.TempDir())
+	sess, err := Run(context.Background(), l, st, config.Config{}, Request{Workflow: "bots", Dir: "/work/bot", Repo: "/work/bot", Resume: "sess-x"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o := l.launched[0]; o.Resume != "sess-x" || o.Name != "cb-bots-1" || o.Dir != "/work/bot" {
+		t.Errorf("launch options = %+v", o)
+	}
+	if state, _, _ := st.Load(); state.Session(sess.SessionID) == nil || sess.Workflow != "bots" {
+		t.Errorf("session not recorded: %+v", sess)
+	}
+}
+
+func TestAdoptRecordsABackgroundSessionAsItIs(t *testing.T) {
+	st := store.Open(t.TempDir())
+	cfg := config.Config{Repos: map[string]string{"api": "/work/api"}}
+	l := claudecli.Session{ShortID: "2a2165a3", SessionID: "sess-bg", Kind: claudecli.KindBackground, State: "stopped", Cwd: "/work/api"}
+	sess, err := Adopt(st, cfg, "Payments V2", l, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := store.Session{SessionID: "sess-bg", ShortID: "2a2165a3", Name: "2a2165a3", Workflow: "payments-v2",
+		Repo: "api", Dir: "/work/api", Cwd: "/work/api", CreatedAt: now}
+	if sess != want {
+		t.Errorf("session = %+v, want %+v (a stopped session has no name, so it goes by its short ID)", sess, want)
+	}
+	state, _, _ := st.Load()
+	if got := state.Session("sess-bg"); got == nil || *got != want {
+		t.Errorf("recorded %+v", got)
+	}
+	if wf := state.Workflow("payments-v2"); wf == nil || wf.Name != "Payments V2" || wf.LastRepo != "api" {
+		t.Errorf("workflow = %+v", wf)
+	}
+	l.Name = "my-agent"
+	if sess, _ := Adopt(st, cfg, "Payments V2", l, now); sess.Name != "my-agent" {
+		t.Errorf("a named session keeps its name, got %q", sess.Name)
+	}
+}
+
+func TestAdoptRefusesInteractiveSessions(t *testing.T) {
+	l := claudecli.Session{SessionID: "sess-i", Kind: claudecli.KindInteractive}
+	if _, err := Adopt(store.Open(t.TempDir()), config.Config{}, "w", l, now); err == nil {
+		t.Error("an interactive session can't be recorded as a background one")
+	}
+}

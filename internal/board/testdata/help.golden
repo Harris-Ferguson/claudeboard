@@ -6,9 +6,9 @@
 │    ✓ api  plan the search rewrite   12k│ tab        next session that needs you                  │
 │  quick                                 │ n          new session                                  │
 │    ○ scratch  new session              │ s          quick one-off in the scratch folder          │
-│  Other sessions                        │ x          stop (keeps conversation, worktree)          │
-│    ● arbybot-8d  new session           │ r          resume a stopped session                     │
-│                                        │ D          delete session and its worktree              │
+│  Other sessions                        │ x / r      stop / resume (keeps the conversation)       │
+│    ● arbybot-8d  new session           │ D          delete session and its worktree              │
+│                                        │ m          move an Other session into a workflow        │
 │                                        │ a / A      archive workflow / show archived             │
 │                                        │ p          show or hide the preview                     │
 │                                        │ pgup pgdn  scroll the preview                           │

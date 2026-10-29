@@ -198,6 +198,9 @@ func (m Model) panelLines(width, height int) []string {
 	case modeHelp:
 		return helpLines()
 	case modePickWorkflow:
+		if m.flow.move != nil {
+			return m.pickerLines("Move " + m.flow.move.Name() + " into: pick a workflow")
+		}
 		return m.pickerLines("New session: pick a workflow")
 	case modePickRepo:
 		return m.pickerLines("New " + m.flow.req.Workflow + " session: pick a folder")
@@ -234,9 +237,9 @@ func helpLines() []string {
 		{"tab", "next session that needs you"},
 		{"n", "new session"},
 		{"s", "quick one-off in the scratch folder"},
-		{"x", "stop (keeps conversation, worktree)"},
-		{"r", "resume a stopped session"},
+		{"x / r", "stop / resume (keeps the conversation)"},
 		{"D", "delete session and its worktree"},
+		{"m", "move an Other session into a workflow"},
 		{"a / A", "archive workflow / show archived"},
 		{"p", "show or hide the preview"},
 		{"pgup pgdn", "scroll the preview"},
@@ -277,6 +280,9 @@ func (m Model) previewLines(r Row, width, height int) []string {
 	state := " " + statusIcon(r.Status) + " " + r.Status.Text()
 	if p := r.Snap.Pending; p != "" && (r.Status.Kind == status.NeedsYou || r.Status.Kind == status.Working) {
 		state += ": " + p
+	}
+	if r.Kind == RowOther {
+		state += styleFaint.Render(" · m moves it into a workflow")
 	}
 	head := []string{title, styleFaint.Render(usage), state, ""}
 
