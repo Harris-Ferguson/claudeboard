@@ -16,17 +16,31 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
+const usage = `usage: claudeboard [command]
+
+  claudeboard              open the board
+  claudeboard new …        start a session (claudeboard new -h for options)
+  claudeboard --version    print the version
+`
+
 // run dispatches subcommands and returns the process exit code.
 func run(args []string, stdout, stderr io.Writer) int {
-	if len(args) > 0 {
-		switch args[0] {
-		case "--version", "-v", "version":
-			fmt.Fprintln(stdout, "claudeboard", buildVersion())
-			return 0
-		}
+	if len(args) == 0 {
+		fmt.Fprintln(stderr, "claudeboard: the board isn't built yet")
+		return 1
 	}
-	fmt.Fprintln(stderr, "claudeboard: the board isn't built yet")
-	return 1
+	switch args[0] {
+	case "--version", "-v", "version":
+		fmt.Fprintln(stdout, "claudeboard", buildVersion())
+		return 0
+	case "new":
+		return runNew(args[1:], stdout, stderr)
+	case "help", "-h", "--help":
+		fmt.Fprint(stdout, usage)
+		return 0
+	}
+	fmt.Fprintf(stderr, "claudeboard: unknown command %q\n\n%s", args[0], usage)
+	return 2
 }
 
 // buildVersion returns version, or "dev (<commit>)" when built from a git checkout.
