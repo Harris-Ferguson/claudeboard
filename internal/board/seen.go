@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/Harris-Ferguson/claudeboard/internal/claudecli"
 	"github.com/Harris-Ferguson/claudeboard/internal/store"
 )
 
@@ -23,22 +24,35 @@ func (m *Model) noteCursor() {
 // noteSeen marks sessions as seen: the selected one once the cursor has rested on it
 // for lookTime with the preview showing (so moving past a session doesn't count), the
 // one with short ID back (the session the user just came back from), and any the
-// state has no record of yet, so sessions don't all start out unread. It runs after
-// each refresh, updates the rows and returns a command that saves the change, or nil
-// when nothing changed.
+// state has no record of yet, so sessions don't all start out unread. It covers every
+// session claudeboard knows and every background session Claude lists, shown or not,
+// so a folded or archived workflow's sessions get a record too. It runs after each
+// refresh, updates the rows and returns a command that saves the change, or nil when
+// nothing changed.
 func (m *Model) noteSeen(back string) tea.Cmd {
+	lookedAt := ""
 	showing := !m.panelMode() && m.previewVisible() && m.previewFits()
-	rested := showing && m.deps.Now().Sub(m.selSince) >= lookTime
-	changes := map[string]int{}
-	for i, r := range m.rows {
-		id := r.SessionID()
-		if id == "" || (r.Kind != RowSession && r.Kind != RowOther) {
-			continue
+	if r, ok := m.selected(); ok && showing && m.deps.Now().Sub(m.selSince) >= lookTime {
+		lookedAt = r.SessionID()
+	}
+	shortIDs := map[string]string{} // by session ID
+	for _, s := range m.state.Sessions {
+		if s.SessionID != "" {
+			shortIDs[s.SessionID] = s.ShortID
 		}
+	}
+	for _, l := range m.live {
+		if l.Kind == claudecli.KindBackground && l.SessionID != "" {
+			shortIDs[l.SessionID] = l.ShortID
+		}
+	}
+	changes := map[string]int{}
+	for id, shortID := range shortIDs {
+		activity := m.snaps[id].Activity
 		seen, known := m.state.Seen[id]
-		looked := (i == m.cursor && rested) || (back != "" && r.ShortID() == back)
-		if !known || (looked && seen < r.Snap.Activity) {
-			changes[id] = r.Snap.Activity
+		looked := id == lookedAt || (back != "" && shortID == back)
+		if !known || (looked && seen < activity) {
+			changes[id] = activity
 		}
 	}
 	if len(changes) == 0 {

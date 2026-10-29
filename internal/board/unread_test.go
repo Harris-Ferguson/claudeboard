@@ -176,3 +176,40 @@ func TestSessionsFirstSeenStartOutRead(t *testing.T) {
 		t.Errorf("saved seen = %v", st.Seen)
 	}
 }
+
+func TestSessionsInFoldedAndArchivedWorkflowsAreTracked(t *testing.T) {
+	m, _ := unreadModel(t, 100, map[string]int{"id-1": 5, "id-2": 5})
+	m.collapsed["q4-search"] = true
+	m.state.Workflows[2].Archived = true // quick
+	m.rebuild()
+	m, _ = send(m, refreshWith(m))
+	if seen, ok := m.state.Seen["id-3"]; !ok || seen != 3 {
+		t.Fatalf("seen %v; cb-q4-search-1, in the folded q4-search, should get a record", m.state.Seen)
+	}
+	if _, ok := m.state.Seen["id-4"]; !ok {
+		t.Errorf("seen %v; cb-quick-1, in the archived quick, should get a record", m.state.Seen)
+	}
+	// It finishes another turn while q4-search is still folded.
+	r := refreshWith(m)
+	s := r.snaps["id-3"]
+	s.Activity = 6
+	r.snaps = map[string]transcript.Snapshot{"id-1": r.snaps["id-1"], "id-2": r.snaps["id-2"], "id-3": s, "id-4": r.snaps["id-4"]}
+	m, _ = send(m, r)
+	if m.rows[3].Kind != RowWorkflow || m.rows[3].Stats.Unread != 1 {
+		t.Errorf("row 3 is %s with %d unread, want q4-search with 1", m.rows[3].Name(), m.rows[3].Stats.Unread)
+	}
+	if out := ansi.Strip(m.render()); !strings.Contains(out, "q4-search  •  [+]") {
+		t.Errorf("no • on the folded workflow:\n%s", out)
+	}
+}
+
+func TestComingBackToASessionInAFoldedWorkflowMarksItSeen(t *testing.T) {
+	m, _ := unreadModel(t, 100, map[string]int{"id-1": 5, "id-2": 5, "id-3": 1})
+	m.collapsed["q4-search"] = true
+	m.rebuild()
+	m, _ = send(m, attachDoneMsg{shortID: "aaaa0003"})
+	m, _ = send(m, refreshWith(m))
+	if m.state.Seen["id-3"] != 3 || m.rows[3].Stats.Unread != 0 {
+		t.Errorf("seen %d, q4-search unread %d; you just came back from it", m.state.Seen["id-3"], m.rows[3].Stats.Unread)
+	}
+}
