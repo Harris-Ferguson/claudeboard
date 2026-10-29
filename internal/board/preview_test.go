@@ -75,6 +75,67 @@ func TestWrappedTextKeepsItsIndentAndWidth(t *testing.T) {
 	}
 }
 
+func TestSpacingInsideALineIsKept(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		it   transcript.Item
+		want []string
+	}{
+		{"code block", transcript.Item{Kind: transcript.ItemText,
+			Text: "Set:\n```go\nx := 1      // one\nlonger := 2 // two\n  if a    &&  b {\n```"}, []string{
+			" claude: Set:",
+			"   x := 1      // one",
+			"   longer := 2 // two",
+			"     if a    &&  b {",
+		}},
+		{"diagram", transcript.Item{Kind: transcript.ItemText,
+			Text: "Flow:\n┌──────────┐      ┌──────────┐\n│  board   │ ───▶ │  claude  │\n└──────────┘      └──────────┘"}, []string{
+			" claude: Flow:",
+			"   ┌──────────┐      ┌──────────┐",
+			"   │  board   │ ───▶ │  claude  │",
+			"   └──────────┘      └──────────┘",
+		}},
+		{"table", transcript.Item{Kind: transcript.ItemText,
+			Text: "| Option | Pros       |\n|--------|------------|\n| A      | fast       |"}, []string{
+			" claude: | Option | Pros       |",
+			"   |--------|------------|",
+			"   | A      | fast       |",
+		}},
+		{"styled", transcript.Item{Kind: transcript.ItemText, Text: "**Done.**   Ran `go test`   twice"}, []string{
+			" claude: Done.   Ran go test   twice",
+		}},
+		{"prompt", transcript.Item{Kind: transcript.ItemPrompt, Text: "why does  a    b  differ"}, []string{
+			" you: why does  a    b  differ",
+		}},
+	} {
+		if got := stripAll(itemLines(tc.it, 60)); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s:\n%q\nwant:\n%q", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestLongSpaceRunBreaksTheLine(t *testing.T) {
+	for _, tc := range []struct {
+		text string
+		want []string
+	}{
+		{"a" + strings.Repeat(" ", 9) + "b", []string{" claude: a         b"}},
+		{"a" + strings.Repeat(" ", 10) + "b", []string{" claude: a", "   b"}},
+		{"a" + strings.Repeat(" ", 40) + "b", []string{" claude: a", "   b"}},
+		{"```\nab" + strings.Repeat(" ", 40) + "cd\n```", []string{" claude: ab", "   cd"}},
+	} {
+		lines := itemLines(transcript.Item{Kind: transcript.ItemText, Text: tc.text}, 20)
+		if got := stripAll(lines); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%q:\n%q\nwant:\n%q", tc.text, got, tc.want)
+		}
+		for i, l := range lines {
+			if ansi.StringWidth(l) > 20 {
+				t.Errorf("%q: line %d is %d cells: %q", tc.text, i, ansi.StringWidth(l), ansi.Strip(l))
+			}
+		}
+	}
+}
+
 func TestBodyCollapsesRepeatedToolCalls(t *testing.T) {
 	items := []transcript.Item{
 		{Kind: transcript.ItemPrompt, Text: "make a deck"},

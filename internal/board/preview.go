@@ -159,30 +159,34 @@ func inlineSpans(line string, base *lipgloss.Style) []span {
 	return append(out, span{line, base})
 }
 
-// token is a word of a span. Tokens with no space before them are glued to the
+// token is a word of a span and the whitespace before it, kept as written so code,
+// tables and diagrams stay aligned. Tokens with no space before them are glued to the
 // previous one: a line only breaks between words.
 type token struct {
 	text  string
 	style *lipgloss.Style
-	space bool
+	space string
 }
 
 func tokenize(spans []span) []token {
 	var out []token
-	space := false
+	space := ""
 	for _, sp := range spans {
 		var b strings.Builder
 		flush := func() {
 			if b.Len() > 0 {
 				out = append(out, token{b.String(), sp.style, space})
-				space = false
+				space = ""
 				b.Reset()
 			}
 		}
 		for _, r := range sp.text {
 			if unicode.IsSpace(r) {
 				flush()
-				space = true
+				if unicode.IsControl(r) {
+					r = ' ' // \v, \f: keep the gap, not the control
+				}
+				space += string(r)
 				continue
 			}
 			b.WriteRune(r)
@@ -201,7 +205,8 @@ func (t token) render(text string) string {
 
 // wrapSpans lays spans out in lines of at most width cells, the first starting with
 // first and the rest with rest. Each word is styled on its own, so no style runs on
-// past the end of a line; a word too long for any line is broken.
+// past the end of a line; a word too long for any line is broken. The spaces between
+// words are kept as written, except where a line starts.
 func wrapSpans(spans []span, width int, first, rest string) []string {
 	var lines []string
 	cur, used, empty := first, ansi.StringWidth(first), true
@@ -212,16 +217,16 @@ func wrapSpans(spans []span, width int, first, rest string) []string {
 	toks := tokenize(spans)
 	for i := 0; i < len(toks); {
 		j, w := i+1, ansi.StringWidth(toks[i].text)
-		for ; j < len(toks) && !toks[j].space; j++ {
+		for ; j < len(toks) && toks[j].space == ""; j++ {
 			w += ansi.StringWidth(toks[j].text)
 		}
-		gap := 1
+		gap := toks[i].space
 		if empty {
-			gap = 0
+			gap = ""
 		}
-		if !empty && used+gap+w > width {
+		if !empty && used+ansi.StringWidth(gap)+w > width {
 			newline()
-			gap = 0
+			gap = ""
 		}
 		if empty && used+w > width {
 			for _, t := range toks[i:j] {
@@ -241,7 +246,7 @@ func wrapSpans(spans []span, width int, first, rest string) []string {
 				}
 			}
 		} else {
-			cur, used, empty = cur+strings.Repeat(" ", gap), used+gap, false
+			cur, used, empty = cur+gap, used+ansi.StringWidth(gap), false
 			for _, t := range toks[i:j] {
 				cur, used = cur+t.render(t.text), used+ansi.StringWidth(t.text)
 			}
