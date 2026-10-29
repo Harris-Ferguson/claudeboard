@@ -65,6 +65,7 @@ Run `claudeboard`.
 | a / A | archive a workflow / show archived workflows |
 | p | show or hide the preview (hidden by default below 90 columns) |
 | PgUp / PgDn | scroll the preview |
+| Ctrl+L | redraw the screen |
 | ? | help |
 | q | quit; sessions keep running |
 
@@ -149,6 +150,11 @@ ide = false           # pass --ide so diffs open in your IDE
 - **A session shows "no messages yet" after you've talked to it**: was it started from
   inside another Claude session's shell? claudeboard removes the variables that turn
   off conversation saving, but sessions started some other way may not have saved.
+- **The board looks wrong after coming back from a session**: press Ctrl+L to redraw
+  it. claudeboard also resets the terminal modes `claude attach` uses (mouse and focus
+  reporting, synchronized output, scroll region, colours) before it takes the screen
+  back, so this shouldn't be needed; if it is, please open an issue saying which terminal
+  you use.
 
 ## How it works
 

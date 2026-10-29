@@ -240,8 +240,8 @@ func helpLines() []string {
 		{"D", "delete session and its worktree"},
 		{"m", "move an Other session into a workflow"},
 		{"a / A", "archive workflow / show archived"},
-		{"p", "show or hide the preview"},
-		{"pgup pgdn", "scroll the preview"},
+		{"p", "preview on/off · pgup pgdn scroll"},
+		{"ctrl+l", "redraw the screen"},
 		{"q", "quit (sessions keep running)"},
 	}
 	lines := []string{" " + styleBold.Render("Keys"), ""}
