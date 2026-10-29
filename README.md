@@ -130,7 +130,7 @@ ide = false           # pass --ide so diffs open in your IDE
    prompt, then press Ctrl+Z. The row shows `●` working, then `✓` done, and the preview
    shows the conversation and token counts.
 5. When a session asks for permission, the header says "1 needs you" and Tab jumps to it.
-6. `x` stops a session (`○ stopped`). Enter reopens it.
+6. `x` stops a session (`◌ stopped`). Enter resumes and reopens it.
 7. `D` deletes it. For a worktree session, check the worktree folder is gone.
 8. `s` the first time asks to trust the scratch folder. Press `y`, accept in Claude,
    type `/exit`, and the session starts.
