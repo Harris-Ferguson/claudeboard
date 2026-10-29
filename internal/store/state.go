@@ -27,11 +27,16 @@ type Session struct {
 	Repo      string    `json:"repo"`
 	Dir       string    `json:"dir"`
 	Worktree  string    `json:"worktree"`
+	Cwd       string    `json:"cwd,omitempty"` // the folder Claude last reported the session in
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// WorkDir is the folder the session runs in: its worktree if it has one, else Dir.
+// WorkDir is the folder the session runs in: where Claude last reported it, else its
+// worktree if it has one, else Dir.
 func (s Session) WorkDir() string {
+	if s.Cwd != "" {
+		return s.Cwd
+	}
 	if s.Worktree == "" {
 		return s.Dir
 	}
@@ -150,7 +155,7 @@ func (st *State) NeedsRelink(listed []Listed) bool {
 			continue
 		}
 		if s := st.Session(l.SessionID); s != nil {
-			if l.ShortID != "" && s.ShortID != l.ShortID {
+			if (l.ShortID != "" && s.ShortID != l.ShortID) || (l.Cwd != "" && s.Cwd != l.Cwd) {
 				return true
 			}
 			continue
@@ -173,8 +178,13 @@ func (st *State) Relink(listed []Listed, now time.Time) int {
 			continue
 		}
 		if s := st.Session(l.SessionID); s != nil {
-			if l.ShortID != "" && s.ShortID != l.ShortID {
-				s.ShortID = l.ShortID
+			if (l.ShortID != "" && s.ShortID != l.ShortID) || (l.Cwd != "" && s.Cwd != l.Cwd) {
+				if l.ShortID != "" {
+					s.ShortID = l.ShortID
+				}
+				if l.Cwd != "" {
+					s.Cwd = l.Cwd
+				}
 				changed++
 			}
 			continue
@@ -184,7 +194,7 @@ func (st *State) Relink(listed []Listed, now time.Time) int {
 			continue
 		}
 		if s := st.sessionByName(l.Name); s != nil && s.SessionID == "" {
-			s.SessionID, s.ShortID = l.SessionID, l.ShortID
+			s.SessionID, s.ShortID, s.Cwd = l.SessionID, l.ShortID, l.Cwd
 			changed++
 			continue
 		}
@@ -193,7 +203,7 @@ func (st *State) Relink(listed []Listed, now time.Time) int {
 		}
 		st.Sessions = append(st.Sessions, Session{
 			SessionID: l.SessionID, ShortID: l.ShortID, Name: l.Name,
-			Workflow: slug, Repo: l.Cwd, Dir: l.Cwd, CreatedAt: now,
+			Workflow: slug, Repo: l.Cwd, Dir: l.Cwd, Cwd: l.Cwd, CreatedAt: now,
 		})
 		changed++
 	}

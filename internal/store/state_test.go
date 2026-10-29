@@ -98,3 +98,25 @@ func TestRelink(t *testing.T) {
 		t.Error("NeedsRelink should be false after Relink")
 	}
 }
+
+func TestWorkDirPrefersTheFolderClaudeReports(t *testing.T) {
+	s := Session{Dir: "/r/sub", Worktree: "w-2", Cwd: "/r/.claude/worktrees/w-2"}
+	if got := s.WorkDir(); got != "/r/.claude/worktrees/w-2" {
+		t.Errorf("WorkDir = %q", got)
+	}
+}
+
+func TestRelinkTracksTheReportedFolder(t *testing.T) {
+	st := State{Workflows: []Workflow{{Slug: "w"}}, Sessions: []Session{{SessionID: "id-1", ShortID: "a", Name: "cb-w-1", Dir: "/r"}}}
+	listed := []Listed{{SessionID: "id-1", ShortID: "a", Name: "cb-w-1", Cwd: "/r/.claude/worktrees/w-1"}}
+	if !st.NeedsRelink(listed) {
+		t.Fatal("a changed folder should need a relink")
+	}
+	st.Relink(listed, now)
+	if got := st.Session("id-1").Cwd; got != "/r/.claude/worktrees/w-1" {
+		t.Errorf("Cwd = %q", got)
+	}
+	if st.NeedsRelink(listed) {
+		t.Error("NeedsRelink still true after Relink")
+	}
+}
