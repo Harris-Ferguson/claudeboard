@@ -1,8 +1,10 @@
 package claudecli
 
 import (
+	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"reflect"
 	"slices"
 	"strings"
@@ -124,5 +126,26 @@ func TestAvailable(t *testing.T) {
 	err := CLI{Bin: "claude-definitely-not-installed"}.Available()
 	if err == nil || !strings.Contains(err.Error(), "isn't on PATH") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+// claude attach spends ~0.3 s (longer on a slow network) sending telemetry after
+// Ctrl+Z before it exits, and the board can't redraw until it has. Only the attach
+// viewer skips it: commands that can start Claude's background service must not, since
+// the service keeps the environment it was started with.
+func TestOnlyAttachSkipsTheTelemetryWait(t *testing.T) {
+	t.Setenv("CLAUDECODE", "1")
+	c := CLI{Bin: "claude"}
+	attach := c.AttachCmd("abc123")
+	if !reflect.DeepEqual(attach.Args, []string{"claude", "attach", "abc123"}) {
+		t.Errorf("args = %q", attach.Args)
+	}
+	if !slices.Contains(attach.Env, "DISABLE_TELEMETRY=1") || slices.Contains(attach.Env, "CLAUDECODE=1") {
+		t.Errorf("attach env should add DISABLE_TELEMETRY=1 and still drop marker variables")
+	}
+	for _, cmd := range []*exec.Cmd{c.command(context.Background(), "/w", LaunchArgs(LaunchOpts{Name: "cb-w-1"})...), c.TrustCmd("/w")} {
+		if slices.Contains(cmd.Env, "DISABLE_TELEMETRY=1") {
+			t.Errorf("%q must keep the user's telemetry setting", cmd.Args)
+		}
 	}
 }

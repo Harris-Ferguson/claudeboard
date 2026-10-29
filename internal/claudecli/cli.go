@@ -150,8 +150,15 @@ func (c CLI) Resume(ctx context.Context, sessionID, dir string) (string, error) 
 }
 
 // AttachCmd is `claude attach <shortID>`, for the caller to run in its terminal.
+//
+// After Ctrl+Z, claude attach restores the screen at once but then sends telemetry
+// before exiting: ~0.3 s, longer on a slow network, and the board can't redraw until
+// it exits. DISABLE_TELEMETRY skips that for this viewer only. The session itself runs
+// in Claude's background service, which keeps its own environment.
 func (c CLI) AttachCmd(shortID string) *exec.Cmd {
-	return c.command(context.Background(), "", "attach", shortID)
+	cmd := c.command(context.Background(), "", "attach", shortID)
+	cmd.Env = append(cmd.Env, "DISABLE_TELEMETRY=1")
+	return cmd
 }
 
 // TrustCmd is an interactive claude in dir, so the user can accept its trust prompt.

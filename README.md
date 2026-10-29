@@ -152,7 +152,9 @@ ide = false           # pass --ide so diffs open in your IDE
 ## How it works
 
 claudeboard runs `claude --bg` to start sessions, polls `claude agents --json` for their
-state, and hands your terminal to `claude attach` to open one. It reads each session's
+state, and hands your terminal to `claude attach` to open one (with `DISABLE_TELEMETRY=1`
+for that viewer only: otherwise it waits to send telemetry before handing the terminal
+back, which made Ctrl+Z take 0.3 s or more). It reads each session's
 conversation file under `~/.claude/projects/` for the preview and token counts, and
 keeps its own list of workflows in `~/.claudeboard/state.json`. Sessions it starts are
 named `cb-<workflow>-<n>`, so they're recognisable in `claude agents` too. The design is

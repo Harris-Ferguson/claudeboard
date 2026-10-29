@@ -86,6 +86,7 @@ List entries: `{pid, id, cwd, kind, sessionId, name, status, state, waitingFor}`
 - `--bg` refuses folders that have never been trusted (`Workspace not trusted. Run claude in <dir> once…`).
 - The background service keeps the environment of whatever process started it. Environment variables set when launching a session do not reach that session, so per-session data is never passed through the environment.
 - Launching from inside a Claude Code session inherits marker variables that turn off transcript saving. claudeboard removes exactly these from the environment of every `claude` command it runs: `CLAUDECODE`, `CLAUDE_CODE_CHILD_SESSION`, `CLAUDE_CODE_ENTRYPOINT`, `CLAUDE_CODE_EXECPATH`, `CLAUDE_CODE_MESSAGING_SOCKET`, `CLAUDE_CODE_MESSAGING_TOKEN`, `CLAUDE_CODE_SESSION_ATTENDED`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_EFFORT`, `CLAUDE_PID`. Other `CLAUDE_CODE_*` and `ANTHROPIC_*` variables (for example a company's provider settings) are left alone.
+- After Ctrl+Z, `claude attach` restores the screen within a few milliseconds but then sends telemetry before exiting: ~0.3 s here (median 335 ms), longer on a slow network, and the board can't redraw until it exits. With `DISABLE_TELEMETRY=1` it exits in ~7 ms (verified 2026-10-29). claudeboard sets it on `claude attach` only, never on commands that can start the background service, which keeps the environment it was started with.
 - `claude logs` prints raw terminal output with spinner frames and is not used.
 - Not yet verified: whether `--ide` works from background sessions.
 
