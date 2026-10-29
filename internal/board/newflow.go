@@ -94,6 +94,7 @@ func (m Model) pickerKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		m.flow.input = textinput.New()
 		m.flow.input.Placeholder = "e.g. payments-v2"
+		m.flow.input.SetWidth(30)
 		m.mode = modeNameWorkflow
 		cmd := m.flow.input.Focus()
 		return m, cmd

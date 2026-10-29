@@ -4,6 +4,10 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/Harris-Ferguson/claudeboard/internal/config"
 )
 
 func labels(cs []choice) []string {
@@ -91,7 +95,7 @@ func TestUntrustedFolderOffersToOpenClaude(t *testing.T) {
 	src.launchErr = errors.New("claude --bg: Workspace not trusted. Run `claude` in /home/.claudeboard/scratch once and accept the trust prompt, then retry.")
 	m, cmd := press(t, m, "s")
 	m, _ = send(m, cmd())
-	if m.mode != modeAskTrust || !strings.Contains(m.footer(100), "isn't trusted yet") {
+	if m.mode != modeAskTrust || !strings.Contains(m.footer(100), "not trusted by Claude yet") {
 		t.Fatalf("mode %v, footer %q", m.mode, m.footer(100))
 	}
 	m2, cmd := press(t, m, "n")
@@ -132,5 +136,30 @@ func TestEscCancelsNewSession(t *testing.T) {
 	m, _ = press(t, m, "n", "enter", "esc")
 	if m.mode != modeList {
 		t.Errorf("esc in the repo picker: mode %v", m.mode)
+	}
+}
+
+func TestWorkflowNameBoxShowsItsPlaceholder(t *testing.T) {
+	m, _ := testModel(t, 100, 16)
+	m, _ = press(t, m, "n", "down", "down", "down", "enter")
+	if out := ansi.Strip(m.render()); !strings.Contains(out, "e.g. payments-v2") {
+		t.Errorf("placeholder not shown:\n%s", out)
+	}
+}
+
+func TestRepoPickerPointsToConfigWhenNoReposAreSet(t *testing.T) {
+	m, _ := testModel(t, 100, 16)
+	m.deps.Cfg = config.Config{ScratchDir: "/home/.claudeboard/scratch", Path: "/home/.claudeboard/config.toml"}
+	m, _ = press(t, m, "n", "enter")
+	if out := ansi.Strip(m.render()); !strings.Contains(out, "config.toml") {
+		t.Errorf("no pointer to config.toml:\n%s", out)
+	}
+}
+
+func TestPreviewKeyExplainsWhenTheScreenIsTooNarrow(t *testing.T) {
+	m, _ := testModel(t, 50, 16)
+	m, _ = press(t, m, "p")
+	if !strings.Contains(m.message, "too narrow") {
+		t.Errorf("message %q", m.message)
 	}
 }

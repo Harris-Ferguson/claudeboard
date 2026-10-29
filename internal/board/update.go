@@ -197,6 +197,9 @@ func (m Model) listKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.rebuild()
 	case "p":
 		m.previewToggled = !m.previewToggled
+		if m.previewVisible() && !m.previewFits() {
+			m.message = "the screen is too narrow for the preview"
+		}
 	case "pgup":
 		m.previewScroll += page
 	case "pgdown":

@@ -177,3 +177,23 @@ func TestNarrowScreenWithPreviewToggledDoesNotCrash(t *testing.T) {
 		assertBox(t, m.render(), w, 12)
 	}
 }
+
+func TestFooterSaysHowToComeBack(t *testing.T) {
+	for _, w := range []int{100, 70} {
+		m, _ := testModel(t, w, 16)
+		if !strings.Contains(ansi.Strip(m.render()), "ctrl+z back") {
+			t.Errorf("width %d: footer doesn't mention ctrl+z", w)
+		}
+	}
+}
+
+func TestTrustQuestionFitsOnAnEightyColumnScreen(t *testing.T) {
+	t.Setenv("HOME", "/Users/someone")
+	m, _ := testModel(t, 80, 16)
+	m.mode = modeAskTrust
+	m.flow.req.Dir = "/Users/someone/.claudeboard/scratch"
+	out := ansi.Strip(m.render())
+	if !strings.Contains(out, "y/N") || strings.Contains(out, "/Users/someone") {
+		t.Errorf("question cut off or path not shortened:\n%s", out)
+	}
+}

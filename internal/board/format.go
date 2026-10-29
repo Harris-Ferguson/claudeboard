@@ -2,6 +2,7 @@ package board
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -100,6 +101,14 @@ func sessionLabel(s transcript.Snapshot) string {
 		return truncate(l, maxLabel)
 	}
 	return "new session"
+}
+
+// tildePath shortens a path under the home folder to start with "~".
+func tildePath(p string) string {
+	if home, err := os.UserHomeDir(); err == nil && home != "" && (p == home || strings.HasPrefix(p, home+"/")) {
+		return "~" + p[len(home):]
+	}
+	return p
 }
 
 func plural(n int, word string) string {

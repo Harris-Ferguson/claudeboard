@@ -21,8 +21,8 @@ var (
 )
 
 const (
-	defaultHelp     = "↑↓ move  enter open  tab next waiting  n new  s quick  ? help  q quit"
-	shortHelp       = "↑↓ enter open  n new  s quick  ? help  q quit"
+	defaultHelp     = "↑↓ move  enter open (ctrl+z back)  tab next waiting  n new  s quick  ? help  q quit"
+	shortHelp       = "↑↓  enter open (ctrl+z back)  n new  ? help  q quit"
 	maxItemLines    = 8 // a long prompt or reply takes at most this many preview lines
 	minPreviewWidth = 20
 )
@@ -45,12 +45,10 @@ func (m Model) render() string {
 	}
 	bh := m.bodyHeight()
 	lw, rw := w-2, 0
-	wide := false
-	if m.previewVisible() {
-		// Two panes only when the preview gets a usable width.
-		if l := clamp(w*2/5, 28, 50); w-l-3 >= minPreviewWidth {
-			wide, lw, rw = true, l, w-l-3
-		}
+	wide := m.previewVisible() && m.previewFits()
+	if wide {
+		lw = clamp(w*2/5, 28, 50)
+		rw = w - lw - 3
 	}
 	var left, right []string
 	if !wide && m.panelMode() {
@@ -78,6 +76,9 @@ func (m Model) render() string {
 	lines = append(lines, "│"+pad(" "+m.footer(w-3), w-2)+"│", "└"+strings.Repeat("─", w-2)+"┘")
 	return strings.Join(lines, "\n")
 }
+
+// previewFits reports whether the screen is wide enough for the preview pane.
+func (m Model) previewFits() bool { return m.width-clamp(m.width*2/5, 28, 50)-3 >= minPreviewWidth }
 
 func at(lines []string, i int) string {
 	if i < len(lines) {
@@ -120,7 +121,7 @@ func (m Model) footer(width int) string {
 	case modeAskWorktree:
 		return styleNeeds.Render(repoLabel(m.flow.req.Repo) + " already has a session running. Use a git worktree? y/N")
 	case modeAskTrust:
-		return styleNeeds.Render(m.flow.req.Dir + " isn't trusted yet. Open Claude there to accept, then /exit? y/N")
+		return styleNeeds.Render("Folder not trusted by Claude yet. Open claude to accept, then /exit? y/N  " + tildePath(m.flow.req.Dir))
 	}
 	if m.message != "" {
 		// Messages can carry Claude's multi-line output; the footer is one line.
@@ -219,6 +220,9 @@ func (m Model) pickerLines(title string) []string {
 			marker = styleBold.Render("▸") + " "
 		}
 		lines = append(lines, " "+marker+c.label)
+	}
+	if m.mode == modePickRepo && len(m.deps.Cfg.Repos) == 0 {
+		lines = append(lines, "", styleFaint.Render(" add your repos to "+tildePath(m.deps.Cfg.Path)+" to list them here"))
 	}
 	return append(lines, "", styleFaint.Render(" ↑↓ choose · enter select · esc cancel"))
 }
