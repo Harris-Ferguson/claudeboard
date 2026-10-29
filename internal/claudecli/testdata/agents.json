@@ -1,0 +1,7 @@
+[
+  {"pid": 101, "id": "aaaa1111", "cwd": "/work/api", "kind": "background", "startedAt": 1793248550286, "sessionId": "aaaa1111-0000-4000-8000-000000000001", "name": "cb-payments-v2-1", "status": "busy", "state": "working"},
+  {"pid": 102, "id": "bbbb2222", "cwd": "/work/web", "kind": "background", "startedAt": 1793248550286, "sessionId": "bbbb2222-0000-4000-8000-000000000002", "name": "cb-payments-v2-2", "status": "waiting", "waitingFor": "permission prompt", "state": "blocked"},
+  {"id": "cccc3333", "cwd": "/work/api", "kind": "background", "sessionId": "cccc3333-0000-4000-8000-000000000003", "name": "cb-q4-search-1", "state": "stopped"},
+  {"id": "dddd4444", "kind": "background", "sessionId": "dddd4444-0000-4000-8000-000000000004", "state": "failed"},
+  {"pid": 105, "cwd": "/Users/me/arbybot", "kind": "interactive", "startedAt": 1793248550286, "sessionId": "eeee5555-0000-4000-8000-000000000005", "name": "arbybot-8d", "status": "idle"}
+]
