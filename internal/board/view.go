@@ -246,7 +246,7 @@ func helpLines() []string {
 		{"↑↓ / j k", "move"},
 		{"enter", "open session (ctrl+z back) / fold"},
 		{"tab", "next session that needs you"},
-		{"n", "new session"},
+		{"n / N", "new session / at once, random name"},
 		{"s", "quick one-off in the scratch folder"},
 		{"x / r", "stop / resume (keeps the conversation)"},
 		{"D", "delete session and its worktree"},

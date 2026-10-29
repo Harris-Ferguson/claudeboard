@@ -213,6 +213,7 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
 | Enter | open the selected session (see below); on a workflow row, collapse/expand it |
 | Tab | jump to the next session that needs the user, in list order |
 | n | new session |
+| N | new session at once, in a new workflow with a random name |
 | s | quick one-off |
 | x | stop session (keeps conversation and worktree) |
 | r | resume a stopped session |
@@ -245,6 +246,8 @@ Enter on a session:
 4. claudeboard launches with no prompt, records the session, and opens it straight away. The user types the prompt in Claude. Model and permission mode come from config.
 
 `s` skips every question: workflow `quick`, the scratch folder, no worktree. It then opens immediately.
+
+`N` skips the pickers: a new workflow with a random two-word name that no workflow uses yet (like `amber-otter`), in the selected row's folder: a session's repo, a workflow's last folder, or an Other session's folder; otherwise the folder the board was started in. It asks the same worktree question as `n` if a session is already running there, then opens the new session.
 
 If a launch fails because the folder isn't trusted, the board offers to open an interactive `claude` there so the user can accept the trust prompt, then retries the launch.
 

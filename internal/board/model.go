@@ -44,6 +44,7 @@ type Deps struct {
 	ProjectsDir string // where Claude Code keeps transcripts
 	Cwd         string // the folder claudeboard was started in
 	Now         func() time.Time
+	NewName     func() string // a random workflow name for N; randomName when nil
 }
 
 type mode int
