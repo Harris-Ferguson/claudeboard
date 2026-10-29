@@ -106,7 +106,7 @@ internal/
 **claudecli.** Pure parsing functions (`ParseAgents([]byte)`, `ParseLaunch(string)`) plus thin wrappers that run `claude` with the cleaned environment: `List`, `Launch`, `Stop`, `Remove`, `Resume` and `AttachCmd`. `AttachCmd` returns an `*exec.Cmd` for the board to hand the terminal to. Every call has a timeout (5 s for list/stop/rm, 15 s for launch/resume).
 
 **transcript.** A `Reader` per session holds the main and subagent file paths and a byte offset per file. `Update()` reads only appended bytes, keeps an incomplete trailing line until it is finished, and starts over if a file shrinks. It produces a `Snapshot`:
-- the last 200 preview items, each a prompt ("you"), text ("claude") or tool call
+- the last 200 preview items, each a prompt ("you"), text ("claude") or tool call (the tool's name and its most telling argument; for Bash, Claude's own description of the command). Calls Claude makes to manage itself, such as `ToolSearch`, are left out
 - the pending tool call: the last `tool_use` with no matching `tool_result`
 - token totals split into input, output, cache read and cache write
 - the first prompt
@@ -182,8 +182,8 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
 │ ▸ ! web  hook PaymentForm… 12k │ ! needs you — permission prompt: Bash npm t… │
 │ q4-search                  12k │                                              │
 │   ✓ api  plan the search…  12k │ you: hook PaymentForm into checkout          │
-│ quick                        0 │ • Edit CheckoutPage.vue                      │
-│   ○ scratch  new session       │ • Bash npm test                              │
+│ quick                        0 │   › Edit  CheckoutPage.vue                   │
+│   ○ scratch  new session       │   › Bash  npm test                           │
 │ Other sessions                 │ claude: Wired it in. Running the tests…      │
 │   ● arbybot-8d                 │                                              │
 ├────────────────────────────────┴──────────────────────────────────────────────┤
@@ -198,7 +198,7 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
   - **Workflow rows** show the name, a `!` when any of its sessions needs the user, and the workflow's token total.
   - **Session rows** show the status icon, repo, label and tokens. The label is the first ~40 characters of the first prompt, or `new session`.
   - **Order never changes because of status,** so rows don't move under the cursor.
-- **Right pane (preview):** the session name, repo (and worktree), token total and breakdown, and subagent count. If the session needs the user, it then shows what it is waiting on, including the pending tool call. Below that are the most recent preview items, following new output. PgUp/PgDn scroll.
+- **Right pane (preview):** the session name, repo (and worktree), token total and breakdown, and subagent count. If the session needs the user, it then shows what it is waiting on, including the pending tool call. Below that are the most recent preview items, following new output. PgUp/PgDn scroll. Prompts and replies are labelled in colour, with wrapped lines indented under the label; replies get light markdown (bold, inline code, headings, bullets, code blocks). Each tool call is one dimmed line (`› Bash  Run the tests`), a run of identical calls is shown once with a count, and the waiting-on line shows the command itself, since that is what a permission prompt asks about.
 - **Narrow terminals:** below 90 columns the preview is hidden by default; `p` toggles it.
 - **Token format:** `950`, `41k`, `1.24M`.
 

@@ -34,9 +34,9 @@ func TestAccumulatorBuildsPreviewAndUsage(t *testing.T) {
 	want := []Item{
 		{Kind: ItemPrompt, Text: "wire PaymentForm into checkout\nand run the tests"},
 		{Kind: ItemText, Text: "Looking at the checkout page."},
-		{Kind: ItemTool, Text: "Edit CheckoutPage.vue"},
+		{Kind: ItemTool, Tool: "Edit", Text: "CheckoutPage.vue"},
 		{Kind: ItemText, Text: "Running the tests."},
-		{Kind: ItemTool, Text: "Bash npm test"},
+		{Kind: ItemTool, Tool: "Bash", Text: "run tests"},
 	}
 	if !reflect.DeepEqual(s.Items, want) {
 		t.Errorf("Items = %+v", s.Items)
@@ -81,21 +81,58 @@ func TestItemsAreCapped(t *testing.T) {
 }
 
 func TestSummarize(t *testing.T) {
-	long := strings.Repeat("x", 100)
+	long := strings.Repeat("x", 150)
 	cases := []struct{ name, input, want string }{
 		{"Edit", `{"file_path":"/repo/src/CheckoutPage.vue"}`, "Edit CheckoutPage.vue"},
 		{"Read", `{}`, "Read"},
 		{"NotebookEdit", `{"notebook_path":"/n/a.ipynb"}`, "NotebookEdit a.ipynb"},
 		{"Bash", `{"command":"npm test\n  --watch"}`, "Bash npm test --watch"},
-		{"Bash", `{"command":"` + long + `"}`, "Bash " + strings.Repeat("x", 60) + "…"},
+		{"Bash", `{"command":"` + long + `"}`, "Bash " + strings.Repeat("x", 120) + "…"},
 		{"Bash", `not json`, "Bash"},
+		// The command is what a permission prompt asks about, so it wins over the
+		// description; a leading cd into the session's own folder is noise.
+		{"Bash", `{"command":"cd ~/worktrees/web-spec && wc -l docs/ab.md","description":"Count lines"}`, "Bash wc -l docs/ab.md"},
+		{"Bash", `{"command":"cd '/a b' ; git status"}`, "Bash git status"},
+		{"Bash", `{"command":"cd /repo"}`, "Bash cd /repo"},
 		{"Grep", `{"pattern":"TODO"}`, "Grep TODO"},
 		{"Task", `{"prompt":"go"}`, "Task"},
+		{"Agent", `{"description":"Review the branch","prompt":"long brief"}`, "Agent Review the branch"},
+		{"AskUserQuestion", `{"questions":[{"question":"Who is the audience?","header":"Audience"}]}`, "AskUserQuestion Who is the audience?"},
+		{"WebFetch", `{"url":"https://example.com/a","prompt":"summarise"}`, "WebFetch https://example.com/a"},
+		{"WebSearch", `{"query":"bubble tea v2"}`, "WebSearch bubble tea v2"},
+		{"TaskCreate", `{"subject":"Write the spec","description":"long"}`, "TaskCreate Write the spec"},
+		{"Skill", `{"skill":"superpowers:brainstorming"}`, "Skill superpowers:brainstorming"},
+		// Tools claudeboard doesn't know get their most telling common argument.
+		{"Artifact", `{"title":"AB testing deck","content":"<html>"}`, "Artifact AB testing deck"},
+		{"Artifact", `{}`, "Artifact"},
+		{"mcp__claude-in-chrome__navigate", `{"url":"https://example.com","tabId":3}`, "claude-in-chrome navigate https://example.com"},
 	}
 	for _, c := range cases {
 		if got := Summarize(c.name, json.RawMessage(c.input)); got != c.want {
 			t.Errorf("Summarize(%s, %s) = %q, want %q", c.name, c.input, got, c.want)
 		}
+	}
+}
+
+func TestPreviewToolItemsPreferBashDescriptions(t *testing.T) {
+	a := newAccumulator()
+	a.add([]byte(`{"type":"assistant","message":{"id":"m","content":[`+
+		`{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"cd /w && M=origin/master; git show \"$M\":x","description":"Show x on master"}},`+
+		`{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"cd /w && ls"}}]}}`), true)
+	want := []Item{
+		{Kind: ItemTool, Tool: "Bash", Text: "Show x on master"},
+		{Kind: ItemTool, Tool: "Bash", Text: "ls"},
+	}
+	if s := a.snapshot(); !reflect.DeepEqual(s.Items, want) {
+		t.Errorf("Items = %+v, want %+v", s.Items, want)
+	}
+}
+
+func TestToolSearchIsLeftOut(t *testing.T) {
+	a := newAccumulator()
+	a.add([]byte(`{"type":"assistant","message":{"id":"m","content":[{"type":"tool_use","id":"t1","name":"ToolSearch","input":{"query":"select:Read"}}]}}`), true)
+	if s := a.snapshot(); len(s.Items) != 0 || s.Pending != "" {
+		t.Errorf("ToolSearch (Claude loading its own tools) shown: %+v", s)
 	}
 }
 
