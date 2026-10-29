@@ -1,0 +1,9 @@
+# build output
+/claudeboard
+/dist/
+*.test
+*.out
+
+# OS / editor
+.DS_Store
+.idea/
