@@ -218,6 +218,25 @@ func TestAdoptRecordsABackgroundSessionAsItIs(t *testing.T) {
 	}
 }
 
+func TestAdoptKeepsAnotherSessionWithTheSameName(t *testing.T) {
+	st := store.Open(t.TempDir())
+	a := claudecli.Session{ShortID: "aaaa0001", SessionID: "sess-a", Name: "fix-tests", Kind: claudecli.KindBackground, Cwd: "/work/api"}
+	b := claudecli.Session{ShortID: "bbbb0001", SessionID: "sess-b", Name: "fix-tests", Kind: claudecli.KindBackground, Cwd: "/work/api"}
+	if _, err := Adopt(st, config.Config{}, "Payments V2", a, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Adopt(st, config.Config{}, "Q4 Search", b, now); err != nil {
+		t.Fatal(err)
+	}
+	state, _, _ := st.Load()
+	if got := state.Session("sess-a"); got == nil || got.Workflow != "payments-v2" {
+		t.Errorf("sess-a = %+v, want it kept in payments-v2 (names aren't unique)", got)
+	}
+	if got := state.Session("sess-b"); got == nil || got.Workflow != "q4-search" {
+		t.Errorf("sess-b = %+v, want it in q4-search", got)
+	}
+}
+
 func TestAdoptRefusesInteractiveSessions(t *testing.T) {
 	l := claudecli.Session{SessionID: "sess-i", Kind: claudecli.KindInteractive}
 	if _, err := Adopt(store.Open(t.TempDir()), config.Config{}, "w", l, now); err == nil {

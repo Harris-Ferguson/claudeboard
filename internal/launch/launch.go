@@ -114,7 +114,13 @@ func Adopt(st *store.Store, cfg config.Config, workflow string, l claudecli.Sess
 		}
 		sess.Workflow = wf.Slug
 		wf.LastRepo = sess.Repo
-		s.UpsertSession(sess)
+		// Match by ID only: names aren't unique, and UpsertSession's name fallback
+		// would replace another session's record.
+		if existing := s.Session(sess.SessionID); existing != nil {
+			*existing = sess
+		} else {
+			s.Sessions = append(s.Sessions, sess)
+		}
 		return nil
 	})
 	if err != nil {
