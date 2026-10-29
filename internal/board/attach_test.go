@@ -32,6 +32,23 @@ func TestAttachCommandResetsTheTerminalAfterwards(t *testing.T) {
 	}
 }
 
+func TestAttachResetLeavesTheCursorWhereItWas(t *testing.T) {
+	// Resetting the scroll region also homes the cursor. The reset is written on the
+	// main screen, so the board's alt-screen entry would save that position and the
+	// shell prompt would land on row 1 after the board quits.
+	const kept = "\x1b7\x1b[r\x1b8"
+	if n := strings.Count(resetModes, "\x1b[r"); n == 0 || n != strings.Count(resetModes, kept) {
+		t.Errorf("reset = %q, want the scroll-region reset only as %q", resetModes, kept)
+	}
+	// Restoring the cursor also restores attributes and the character set.
+	restored := strings.LastIndex(resetModes, "\x1b8")
+	for _, mode := range []string{"\x1b[0m", "\x1b(B", "\x0f"} {
+		if strings.Index(resetModes, mode) < restored {
+			t.Errorf("reset = %q, want %q after the cursor restore", resetModes, mode)
+		}
+	}
+}
+
 func TestCtrlLRedrawsTheScreen(t *testing.T) {
 	m, _ := testModel(t, 100, 16)
 	_, cmd := press(t, m, "ctrl+l")

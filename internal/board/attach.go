@@ -12,10 +12,17 @@ import (
 // board would be drawn into a terminal in the wrong state. Bubble Tea sets bracketed
 // paste, keyboard modes, the cursor and the alt screen again when it takes the
 // terminal back.
+//
+// Resetting the scroll region also moves the cursor to the top left, and Bubble Tea
+// saves the cursor position when it enters the alt screen again, so the shell prompt
+// would land on row 1 after the board quits. The cursor is saved and restored around
+// it, as claude attach does. Restoring it also restores attributes and the character
+// set, so those are reset afterwards.
 const resetModes = "\x1b[?2026l" +
 	"\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l" +
 	"\x1b[?1004l\x1b[?2031l" +
-	"\x1b[r\x1b[0m\x1b(B\x0f"
+	"\x1b7\x1b[r\x1b8" +
+	"\x1b[0m\x1b(B\x0f"
 
 // terminalCommand runs a claude command in the board's terminal (`claude attach`, or
 // claude for its trust prompt), then writes resetModes before the board takes the
