@@ -1,0 +1,16 @@
+┌ claudeboard · 1 working · 1 needs you · 65k tokens ────────────────┐
+│▸ payments-v2  !                                                 53k│
+│    ● api  wire the new AfterPay button into check…              41k│
+│    ! web  hook PaymentForm into checkout                        12k│
+│  q4-search                                                      12k│
+│    ✓ api  plan the search rewrite                               12k│
+│  quick                                                             │
+│    ○ scratch  new session                                          │
+│  Other sessions                                                    │
+│    ● arbybot-8d  new session                                       │
+│                                                                    │
+│                                                                    │
+│                                                                    │
+├────────────────────────────────────────────────────────────────────┤
+│ ↑↓ enter open  n new  s quick  ? help  q quit                      │
+└────────────────────────────────────────────────────────────────────┘

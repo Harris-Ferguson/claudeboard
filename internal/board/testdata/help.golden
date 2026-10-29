@@ -1,0 +1,20 @@
+┌ claudeboard · 1 working · 1 needs you · 65k tokens ──────────────────────────────────────────────┐
+│▸ payments-v2  !                     53k│ Keys                                                    │
+│    ● api  wire the new AfterPay bu… 41k│                                                         │
+│    ! web  hook PaymentForm into ch… 12k│ ↑↓ / j k   move                                         │
+│  q4-search                          12k│ enter      open session (ctrl+z back) / fold            │
+│    ✓ api  plan the search rewrite   12k│ tab        next session that needs you                  │
+│  quick                                 │ n          new session                                  │
+│    ○ scratch  new session              │ s          quick one-off in the scratch folder          │
+│  Other sessions                        │ x          stop (keeps conversation, worktree)          │
+│    ● arbybot-8d  new session           │ r          resume a stopped session                     │
+│                                        │ D          delete session and its worktree              │
+│                                        │ a / A      archive workflow / show archived             │
+│                                        │ p          show or hide the preview                     │
+│                                        │ pgup pgdn  scroll the preview                           │
+│                                        │ q          quit (sessions keep running)                 │
+│                                        │                                                         │
+│                                        │ press any key to close                                  │
+├────────────────────────────────────────┴─────────────────────────────────────────────────────────┤
+│ ↑↓ move  enter open  tab next waiting  n new  s quick  ? help  q quit                            │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
