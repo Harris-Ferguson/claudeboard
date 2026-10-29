@@ -1,14 +1,18 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/x/term"
 
 	"github.com/Harris-Ferguson/claudeboard/internal/claudecli"
 	"github.com/Harris-Ferguson/claudeboard/internal/config"
@@ -96,40 +100,106 @@ func runNew(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return fail(stderr, err)
 	}
-	cfg, err := config.Load(home)
-	if err != nil {
-		return fail(stderr, err)
-	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fail(stderr, err)
 	}
-	dir, err := cfg.ResolveRepo(a.repo, cwd)
-	if err != nil {
+	return newSession(a, newEnv{
+		cli:      claudecli.New(),
+		home:     home,
+		cwd:      cwd,
+		stdin:    os.Stdin,
+		terminal: term.IsTerminal(os.Stdin.Fd()) && term.IsTerminal(os.Stdout.Fd()),
+		now:      time.Now,
+	}, stdout, stderr)
+}
+
+// newCLI is the part of claudecli.CLI that `claudeboard new` uses.
+type newCLI interface {
+	launch.Launcher
+	Available() error
+	AttachCmd(shortID string) *exec.Cmd
+	TrustCmd(dir string) *exec.Cmd
+}
+
+// newEnv is the outside world `claudeboard new` works in; tests replace it.
+type newEnv struct {
+	cli      newCLI
+	home     string
+	cwd      string
+	stdin    io.Reader // where answers to questions come from
+	terminal bool      // stdin and stdout are a terminal, so a session can open here
+	now      func() time.Time
+}
+
+// newSession starts a session as described by a, then either opens it here or (with a
+// prompt) leaves it running in the background.
+func newSession(a newArgs, env newEnv, stdout, stderr io.Writer) int {
+	if err := env.cli.Available(); err != nil {
 		return fail(stderr, err)
 	}
-	cli := claudecli.New()
-	sess, err := launch.Run(context.Background(), cli, store.Open(home), cfg, launch.Request{
-		Workflow: a.workflow, Dir: dir, Repo: cfg.RepoName(dir), Worktree: a.worktree, Prompt: a.prompt,
-	}, time.Now())
-	if claudecli.IsUntrusted(err) {
-		fmt.Fprintf(stderr, "claudeboard: %s isn't trusted by Claude Code yet. Run `claude` there once, accept the trust prompt, then try again.\n", dir)
+	if a.prompt == "" && !env.terminal {
+		fmt.Fprintln(stderr, "claudeboard: this isn't a terminal, so the session has nowhere to open.\n"+
+			"To start one in the background instead, pass a prompt: claudeboard new [options] \"your prompt\"")
 		return 1
 	}
+	cfg, err := config.Load(env.home)
 	if err != nil {
 		return fail(stderr, err)
 	}
-	if a.prompt != "" {
-		fmt.Fprintf(stdout, "started %s (%s)\n", sess.Name, sess.ShortID)
-		return 0
-	}
-	attach := cli.AttachCmd(sess.ShortID)
-	attach.Stdin, attach.Stdout, attach.Stderr = os.Stdin, os.Stdout, os.Stderr
-	if err := attach.Run(); err != nil {
+	dir, err := cfg.ResolveRepo(a.repo, env.cwd)
+	if err != nil {
 		return fail(stderr, err)
 	}
+	req := launch.Request{Workflow: a.workflow, Dir: dir, Repo: cfg.RepoName(dir), Worktree: a.worktree, Prompt: a.prompt}
+	start := func() (store.Session, error) {
+		return launch.Run(context.Background(), env.cli, store.Open(env.home), cfg, req, env.now())
+	}
+	sess, err := start()
+	if claudecli.IsUntrusted(err) {
+		question := fmt.Sprintf("%s isn't trusted by Claude Code yet. Open claude there to accept the trust prompt (then type /exit)? [Y/n] ", dir)
+		if !env.terminal || !ask(env.stdin, stdout, question) {
+			fmt.Fprintf(stderr, "claudeboard: %s isn't trusted by Claude Code yet. Accept its trust prompt once, then try again:\n  cd %s && claude\n", dir, shellQuote(dir))
+			return 1
+		}
+		if err := runAttached(env.cli.TrustCmd(dir), env, stdout, stderr); err != nil {
+			return fail(stderr, err)
+		}
+		sess, err = start()
+	}
+	if err != nil {
+		return fail(stderr, err)
+	}
+	reopen := "claude attach " + sess.ShortID
+	if a.prompt != "" {
+		fmt.Fprintf(stdout, "started %s (%s) in %s\nopen it with %s, or see it in claudeboard\n", sess.Name, sess.ShortID, dir, reopen)
+		return 0
+	}
+	fmt.Fprintf(stdout, "opening %s (%s) in %s. Ctrl+Z inside it comes back here.\n", sess.Name, sess.ShortID, dir)
+	if err := runAttached(env.cli.AttachCmd(sess.ShortID), env, stdout, stderr); err != nil {
+		fmt.Fprintf(stderr, "claudeboard: %s: %v\n%s is still running; try %s\n", reopen, err, sess.Name, reopen)
+		return 1
+	}
+	fmt.Fprintf(stdout, "%s is still running. Back to it: %s (or open claudeboard)\n", sess.Name, reopen)
 	return 0
 }
+
+// runAttached runs an interactive claude command in this terminal.
+func runAttached(cmd *exec.Cmd, env newEnv, stdout, stderr io.Writer) error {
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = env.stdin, stdout, stderr
+	return cmd.Run()
+}
+
+// ask prints question and reads a line; an empty answer or one starting with y is yes.
+func ask(in io.Reader, out io.Writer, question string) bool {
+	fmt.Fprint(out, question)
+	line, _ := bufio.NewReader(in).ReadString('\n')
+	answer := strings.ToLower(strings.TrimSpace(line))
+	return answer == "" || strings.HasPrefix(answer, "y")
+}
+
+// shellQuote quotes s for a POSIX shell.
+func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
 func fail(stderr io.Writer, err error) int {
 	fmt.Fprintf(stderr, "claudeboard: %v\n", err)

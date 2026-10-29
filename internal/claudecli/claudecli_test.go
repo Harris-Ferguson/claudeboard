@@ -5,6 +5,7 @@ import (
 	"os"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -113,5 +114,15 @@ func TestIsUntrusted(t *testing.T) {
 	}
 	if IsUntrusted(nil) || IsUntrusted(errors.New("boom")) {
 		t.Error("false positive")
+	}
+}
+
+func TestAvailable(t *testing.T) {
+	if err := (CLI{Bin: "sh"}).Available(); err != nil {
+		t.Errorf("sh should be found: %v", err)
+	}
+	err := CLI{Bin: "claude-definitely-not-installed"}.Available()
+	if err == nil || !strings.Contains(err.Error(), "isn't on PATH") {
+		t.Errorf("err = %v", err)
 	}
 }

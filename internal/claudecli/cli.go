@@ -81,6 +81,16 @@ func (c CLI) run(ctx context.Context, timeout time.Duration, dir string, args ..
 	return text, nil
 }
 
+// Available reports whether the claude command can be found, with an error that says
+// what to do when it can't.
+func (c CLI) Available() error {
+	if _, err := exec.LookPath(c.Bin); err != nil {
+		return fmt.Errorf("Claude Code (`%s`) isn't on PATH in this terminal. Install it, or check PATH: "+
+			"IDE terminals such as PHPStorm's can use a different PATH from your login shell", c.Bin)
+	}
+	return nil
+}
+
 // Version returns the installed Claude Code version, e.g. "2.1.312".
 func (c CLI) Version(ctx context.Context) (string, error) {
 	out, err := c.run(ctx, shortTimeout, "", "--version")

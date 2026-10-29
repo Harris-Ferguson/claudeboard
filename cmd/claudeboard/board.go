@@ -20,6 +20,9 @@ import (
 func runBoard(stderr io.Writer) int {
 	ctx := context.Background()
 	cli := claudecli.New()
+	if err := cli.Available(); err != nil {
+		return fail(stderr, err)
+	}
 	v, err := cli.Version(ctx)
 	if err != nil {
 		fmt.Fprintf(stderr, "claudeboard: couldn't run `claude --version` (%v).\nIs Claude Code installed and on your PATH?\n", err)
