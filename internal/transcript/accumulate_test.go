@@ -155,3 +155,15 @@ func TestFreshLeavesOutCacheReads(t *testing.T) {
 		t.Errorf("Fresh = %d, want 7", got)
 	}
 }
+
+func TestActivityCountsClaudesMessages(t *testing.T) {
+	a := newAccumulator()
+	a.add([]byte(`{"type":"user","message":{"content":"go"}}`), true)
+	a.add([]byte(`{"type":"assistant","message":{"id":"m1","content":[{"type":"text","text":"on it"}]}}`), true)
+	a.add([]byte(`{"type":"assistant","message":{"id":"m2","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"ls"}}]}}`), true)
+	a.add([]byte(`{"type":"assistant","message":{"id":"s1","content":[{"type":"text","text":"sub"}]}}`), false)
+	a.add([]byte(`{"type":"assistant","isSidechain":true,"message":{"id":"s2","content":[{"type":"text","text":"side"}]}}`), true)
+	if got := a.snapshot().Activity; got != 2 {
+		t.Errorf("Activity = %d, want 2 (Claude's messages in the main conversation only)", got)
+	}
+}

@@ -127,3 +127,23 @@ func TestNextSessionNumberNeverReusesANumber(t *testing.T) {
 		t.Errorf("NextSessionNumber = %d, want 6 (5 was used by a deleted session)", n)
 	}
 }
+
+func TestSeenIsKeptAndForgottenWithItsSession(t *testing.T) {
+	st := Open(t.TempDir())
+	if err := st.Update(func(s *State) error {
+		s.UpsertSession(Session{SessionID: "a", Name: "cb-w-1"})
+		s.MarkSeen("a", 4)
+		s.MarkSeen("other", 2)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s, _, _ := st.Load()
+	if s.Seen["a"] != 4 || s.Seen["other"] != 2 {
+		t.Fatalf("Seen = %v", s.Seen)
+	}
+	s.RemoveSession("a", "")
+	if _, ok := s.Seen["a"]; ok {
+		t.Error("a deleted session's read state should go with it")
+	}
+}

@@ -49,6 +49,17 @@ type State struct {
 	Version   int        `json:"version"`
 	Workflows []Workflow `json:"workflows"`
 	Sessions  []Session  `json:"sessions"`
+	// Seen is, by session ID, how much of the session's conversation the user has seen
+	// (transcript.Snapshot.Activity), for its own sessions and Other ones alike.
+	Seen map[string]int `json:"seen,omitempty"`
+}
+
+// MarkSeen records that the user has seen the session up to activity.
+func (st *State) MarkSeen(sessionID string, activity int) {
+	if st.Seen == nil {
+		st.Seen = map[string]int{}
+	}
+	st.Seen[sessionID] = activity
 }
 
 // Workflow returns the workflow with this slug, or nil.
@@ -138,6 +149,7 @@ func (st *State) RemoveSession(sessionID, name string) bool {
 	for i, s := range st.Sessions {
 		if (sessionID != "" && s.SessionID == sessionID) || (sessionID == "" && s.Name == name) {
 			st.Sessions = append(st.Sessions[:i], st.Sessions[i+1:]...)
+			delete(st.Seen, s.SessionID)
 			return true
 		}
 	}

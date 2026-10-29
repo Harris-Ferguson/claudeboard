@@ -56,6 +56,7 @@ type accumulator struct {
 	pendingOrder []string
 	firstPrompt  string
 	prompts      int
+	activity     int
 }
 
 func newAccumulator() *accumulator {
@@ -86,6 +87,7 @@ func (a *accumulator) add(line []byte, main bool) {
 		if !main || r.IsSidechain {
 			return
 		}
+		a.activity++
 		for _, b := range blocks(m.Content) {
 			switch b.Type {
 			case "text":
@@ -178,6 +180,7 @@ func (a *accumulator) snapshot() Snapshot {
 		Usage:       u,
 		FirstPrompt: a.firstPrompt,
 		Prompts:     a.prompts,
+		Activity:    a.activity,
 	}
 }
 

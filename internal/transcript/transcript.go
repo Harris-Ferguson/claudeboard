@@ -45,5 +45,6 @@ type Snapshot struct {
 	Usage       Usage  // tokens, including subagents
 	FirstPrompt string
 	Prompts     int
+	Activity    int // Claude's messages in the main conversation; only ever goes up
 	Subagents   int
 }

@@ -100,6 +100,14 @@ type Model struct {
 	listErr    error
 	message    string // one-line note in the footer
 
+	// seen is what this board has marked seen (by session ID). It's laid over the
+	// state's own record, so a refresh that read state.json before the save landed
+	// doesn't make a session unread again.
+	seen map[string]int
+	// seenAfterAttach is the short ID of the session the user just came back from; the
+	// next refresh marks it seen.
+	seenAfterAttach string
+
 	mode       mode
 	flow       newFlow
 	pending    Row    // the row a y/N question is about
@@ -134,6 +142,11 @@ func (m *Model) rebuild() {
 	key := ""
 	if r, ok := m.selected(); ok {
 		key = r.Key()
+	}
+	for id, n := range m.seen {
+		if cur, ok := m.state.Seen[id]; !ok || cur < n {
+			m.state.MarkSeen(id, n)
+		}
 	}
 	m.rows, m.counts = BuildRows(m.state, m.live, m.snaps, m.collapsed, m.showArchived)
 	found := false

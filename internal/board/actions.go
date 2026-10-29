@@ -44,12 +44,16 @@ func (msg resumedMsg) apply(m Model) (Model, tea.Cmd) {
 }
 
 // attachDoneMsg arrives when the user comes back from a session.
-type attachDoneMsg struct{ err error }
+type attachDoneMsg struct {
+	shortID string
+	err     error
+}
 
 func (msg attachDoneMsg) apply(m Model) (Model, tea.Cmd) {
 	if msg.err != nil {
 		m.message = "claude attach: " + msg.err.Error()
 	}
+	m.seenAfterAttach = msg.shortID
 	cmd := m.startRefresh()
 	return m, cmd
 }
@@ -59,7 +63,7 @@ func (m Model) attach(shortID string) tea.Cmd {
 	if shortID == "" {
 		return nil
 	}
-	return tea.Exec(inTerminal(m.deps.Src.AttachCmd(shortID)), func(err error) tea.Msg { return attachDoneMsg{err: err} })
+	return tea.Exec(inTerminal(m.deps.Src.AttachCmd(shortID)), func(err error) tea.Msg { return attachDoneMsg{shortID: shortID, err: err} })
 }
 
 func (m Model) enter() (tea.Model, tea.Cmd) {

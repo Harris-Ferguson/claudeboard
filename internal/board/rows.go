@@ -29,12 +29,14 @@ type Row struct {
 	Stats     Counts // RowWorkflow: its sessions
 	Sessions  int    // RowWorkflow: how many sessions it has
 	Collapsed bool   // RowWorkflow
+	Unread    bool   // a background session that finished a turn since the user last saw it
 }
 
 // Counts summarises sessions for the header and workflow rows.
 type Counts struct {
 	Working  int
 	NeedsYou int
+	Unread   int
 	Tokens   int64
 }
 
@@ -75,6 +77,25 @@ func (r Row) Name() string {
 		return r.Live.Name
 	}
 	return r.Live.ShortID
+}
+
+// SessionID is the full ID of a session row's session, or "".
+func (r Row) SessionID() string {
+	if r.Live != nil && r.Live.SessionID != "" {
+		return r.Live.SessionID
+	}
+	return r.Session.SessionID
+}
+
+// unread reports whether a background session finished a turn (it's done, or waiting
+// for the user) since the user last saw it. A session the state has no record of isn't:
+// the board records it as seen when it first sees it.
+func unread(st store.State, id string, l *claudecli.Session, snap transcript.Snapshot, s status.Status) bool {
+	seen, ok := st.Seen[id]
+	if !ok || l == nil || l.Kind != claudecli.KindBackground {
+		return false
+	}
+	return snap.Activity > seen && (s.Kind == status.Done || s.Kind == status.NeedsYou)
 }
 
 // Interactive reports whether the row is a session running in someone's terminal,
@@ -137,6 +158,10 @@ func BuildRows(st store.State, live []claudecli.Session, snaps map[string]transc
 			snap := snaps[snapID]
 			r := Row{Kind: RowSession, Workflow: wf, Session: s, Live: l, Snap: snap,
 				Status: status.From(l, snap.Prompts > 0), Tokens: snap.Usage.Fresh()}
+			r.Unread = unread(st, snapID, l, snap, r.Status)
+			if r.Unread {
+				head.Stats.Unread++
+			}
 			head.Sessions++
 			head.Tokens += r.Tokens
 			head.Stats.Tokens += r.Tokens
@@ -153,6 +178,7 @@ func BuildRows(st store.State, live []claudecli.Session, snaps map[string]transc
 		}
 		total.Working += head.Stats.Working
 		total.NeedsYou += head.Stats.NeedsYou
+		total.Unread += head.Stats.Unread
 		total.Tokens += head.Stats.Tokens
 		rows = append(rows, head)
 		if !head.Collapsed {
@@ -166,8 +192,9 @@ func BuildRows(st store.State, live []claudecli.Session, snaps map[string]transc
 			continue
 		}
 		snap := snaps[l.SessionID]
-		others = append(others, Row{Kind: RowOther, Live: l, Snap: snap,
-			Status: status.From(l, snap.Prompts > 0), Tokens: snap.Usage.Fresh()})
+		r := Row{Kind: RowOther, Live: l, Snap: snap, Status: status.From(l, snap.Prompts > 0), Tokens: snap.Usage.Fresh()}
+		r.Unread = unread(st, l.SessionID, l, snap, r.Status)
+		others = append(others, r)
 	}
 	if len(others) > 0 {
 		rows = append(rows, Row{Kind: RowOtherHeader})

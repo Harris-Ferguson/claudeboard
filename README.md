@@ -72,6 +72,12 @@ Run `claudeboard`.
 Statuses: `●` working, `!` needs you (with what it's waiting for), `✓` done (your turn),
 `○` new (no prompt yet), `◌` stopped.
 
+A `•` before a session's label (in bold) means it's **unread**: Claude finished a turn
+(✓ done or ! needs you) since you last looked. Opening the session, or having it
+selected while the preview shows, counts as looking. A workflow shows `•` when any of
+its sessions is unread. Read state is kept in `~/.claudeboard/state.json`; sessions the
+board sees for the first time start out read.
+
 Token counts on rows, workflows and in the header are the tokens each session added:
 input, output and cache writes. They leave out cache reads, which re-count the same
 context on every turn and would otherwise be 95% of the number. The preview shows the
