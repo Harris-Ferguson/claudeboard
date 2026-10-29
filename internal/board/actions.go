@@ -75,14 +75,20 @@ func (m Model) enter() (tea.Model, tea.Cmd) {
 	case r.Interactive():
 		m.message = msgOpenInteractive
 		return m, nil
-	case r.Kind == RowSession && (r.Live == nil || r.Status.Kind == status.Stopped):
-		// Stopped, or no longer listed (deleted elsewhere, or the background service
-		// restarted): resume from the saved conversation, then open it.
+	case (r.Kind == RowSession || r.Kind == RowOther) && !r.Running():
+		// Stopped, failed, or no longer listed (deleted elsewhere, or the background
+		// service restarted): resume from the saved conversation, then open it. Never
+		// attach to it as it is: claude attach would start the background service if it
+		// isn't running, and the service would keep the viewer's DISABLE_TELEMETRY=1.
 		if m.lastOK.IsZero() {
 			m.message = msgNoListingYet
 			return m, nil
 		}
-		if r.Session.SessionID == "" {
+		if r.Kind == RowOther && r.Live.Cwd == "" {
+			m.message = "can't reopen " + r.Name() + ": Claude doesn't list its folder"
+			return m, nil
+		}
+		if r.Kind == RowSession && r.Session.SessionID == "" {
 			m.message = "can't reopen " + r.Name() + ": Claude doesn't list it and its session ID is unknown"
 			return m, nil
 		}
@@ -98,16 +104,20 @@ func (m Model) enter() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) resumeCmd(r Row, thenAttach bool) tea.Cmd {
-	src, s := m.deps.Src, r.Session
+	src, name := m.deps.Src, r.Name()
+	sessionID, dir := r.Session.SessionID, r.Session.WorkDir()
+	if r.Kind == RowOther {
+		sessionID, dir = r.Live.SessionID, r.Live.Cwd
+	}
 	return func() tea.Msg {
-		id, err := src.Resume(context.Background(), s.SessionID, s.WorkDir())
+		id, err := src.Resume(context.Background(), sessionID, dir)
 		switch {
 		case err != nil:
 			return actionDoneMsg{err: err}
 		case thenAttach:
 			return resumedMsg{shortID: id}
 		}
-		return actionDoneMsg{text: "resumed " + s.Name}
+		return actionDoneMsg{text: "resumed " + name}
 	}
 }
 

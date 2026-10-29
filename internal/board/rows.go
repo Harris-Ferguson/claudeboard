@@ -83,6 +83,21 @@ func (r Row) Interactive() bool {
 	return r.Kind == RowOther && r.Live.Kind == claudecli.KindInteractive
 }
 
+// Running reports whether the row's background session is in Claude's background
+// service: listed, and not stopped, failed, crashed or exited. Other states, such as one
+// it passes through while starting, count as running, because resuming a session that is
+// running starts a copy of it.
+func (r Row) Running() bool {
+	if r.Live == nil {
+		return false
+	}
+	switch r.Live.State {
+	case "stopped", "failed", "crashed", "exited":
+		return false
+	}
+	return true
+}
+
 // BuildRows lays out the left pane: each workflow (in creation order) followed by its
 // sessions unless collapsed, then sessions Claude lists that claudeboard didn't start.
 // Archived workflows are left out unless showArchived. Counts covers the visible
