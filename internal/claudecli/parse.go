@@ -33,6 +33,7 @@ type Session struct {
 	Status     string `json:"status"`
 	State      string `json:"state"`
 	WaitingFor string `json:"waitingFor"`
+	StartedAt  int64  `json:"startedAt"` // when its process started, in Unix milliseconds; 0 if not given
 }
 
 // ParseAgents parses the output of `claude agents --json --all`.

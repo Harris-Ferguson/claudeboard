@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Harris-Ferguson/claudeboard/internal/status"
+	"github.com/Harris-Ferguson/claudeboard/internal/transcript"
 )
 
 var (
@@ -179,6 +180,10 @@ func (m Model) rowLine(r Row, selected bool, width int) string {
 		return styleFaint.Render("  Other sessions")
 	case RowSession:
 		return fit("  "+marker+statusIcon(r.Status)+" "+repoLabel(r.Session.Repo)+labelPart(r), tokensOrBlank(r.Tokens), width)
+	case RowAgent:
+		return fit("  "+marker+styleFaint.Render(r.Tree)+statusIcon(r.Status)+" "+r.Name(), tokensOrBlank(r.Tokens), width)
+	case RowAgentsFolded:
+		return fit("  "+marker+styleFaint.Render(r.Tree)+agentsFoldedLabel(r), tokensOrBlank(r.Tokens), width)
 	}
 	return fit("  "+marker+statusIcon(r.Status)+" "+r.Name()+labelPart(r), tokensOrBlank(r.Tokens), width)
 }
@@ -269,6 +274,10 @@ func (m Model) previewLines(r Row, width, height int) []string {
 		return m.workflowLines(r)
 	case RowOtherHeader:
 		return nil
+	case RowAgent:
+		return m.agentLines(r, width, height)
+	case RowAgentsFolded:
+		return finishedAgentLines(r)
 	}
 	title := " " + styleBold.Render(r.Name())
 	switch {
@@ -282,11 +291,9 @@ func (m Model) previewLines(r Row, width, height int) []string {
 		title += " · running in another terminal"
 	}
 	title += " · " + formatTokens(r.Tokens) + " tokens"
-	u := r.Snap.Usage
-	usage := fmt.Sprintf(" in %s · out %s · cache r %s · w %s",
-		formatTokens(u.Input), formatTokens(u.Output), formatTokens(u.CacheRead), formatTokens(u.CacheWrite))
-	if r.Snap.Subagents > 0 {
-		usage += " · " + plural(r.Snap.Subagents, "subagent")
+	usage := " " + usageText(r.Snap.Usage)
+	if n := len(r.Snap.Agents); n > 0 {
+		usage += " · " + plural(n, "subagent")
 	}
 	state := " " + statusIcon(r.Status) + " " + r.Status.Text()
 	if p := r.Snap.Pending; p != "" && (r.Status.Kind == status.NeedsYou || r.Status.Kind == status.Working) {
@@ -301,7 +308,57 @@ func (m Model) previewLines(r Row, width, height int) []string {
 	if !r.Snap.Found {
 		body = []string{styleFaint.Render(" no messages yet")}
 	}
-	body = append(body, bodyLines(r.Snap.Items, width-1)...)
+	body = append(body, bodyLines(r.Snap.Items, width-1, "you:")...)
+	return m.scrolled(head, body, height)
+}
+
+// agentLines is a subagent's preview: what it's doing and its own conversation, which
+// starts with the task its session gave it.
+func (m Model) agentLines(r Row, width, height int) []string {
+	a := r.Agent
+	title := " " + styleBold.Render(r.Name()) + " · subagent of " + r.Owner.Name() + " · " + formatTokens(r.Tokens) + " tokens"
+	usage := " " + usageText(a.Usage)
+	if a.Type != "" {
+		usage = " " + a.Type + " ·" + usage
+	}
+	state := " " + statusIcon(r.Status) + " finished"
+	if r.Status.Kind == status.Working {
+		state = " " + statusIcon(r.Status) + " working"
+		if a.Pending != "" {
+			state += ": " + a.Pending
+		}
+	}
+	state += styleFaint.Render(" · enter opens " + r.Owner.Name())
+	head := []string{title, styleFaint.Render(usage), state, ""}
+	return m.scrolled(head, bodyLines(a.Items, width-1, "task:"), height)
+}
+
+// finishedAgentLines is the preview of a session's finished-subagents line: a list.
+func finishedAgentLines(r Row) []string {
+	lines := []string{
+		" " + styleBold.Render(r.Owner.Name()) + " · " + plural(r.Finished, "finished subagent") + " · " + formatTokens(r.Tokens) + " tokens",
+		"",
+	}
+	for _, a := range r.Owner.Snap.Agents {
+		if !agentRunning(*r.Owner, a) {
+			lines = append(lines, " "+statusIcon(r.Status)+" "+agentLabel(a)+styleFaint.Render(" · "+formatTokens(a.Usage.Fresh())+" tokens"))
+		}
+	}
+	hint := " enter shows them, to read what each did"
+	if !r.Collapsed {
+		hint = " enter hides them"
+	}
+	return append(lines, "", styleFaint.Render(hint))
+}
+
+func usageText(u transcript.Usage) string {
+	return fmt.Sprintf("in %s · out %s · cache r %s · w %s",
+		formatTokens(u.Input), formatTokens(u.Output), formatTokens(u.CacheRead), formatTokens(u.CacheWrite))
+}
+
+// scrolled fits head and the end of body into height lines, scrolled back by the
+// user's PgUp.
+func (m Model) scrolled(head, body []string, height int) []string {
 	avail := height - len(head)
 	if avail <= 0 {
 		return head[:max(0, height)]

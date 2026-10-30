@@ -2,6 +2,8 @@
 // and turns them into preview items and token totals.
 package transcript
 
+import "time"
+
 // ItemKind says who an Item comes from.
 type ItemKind int
 
@@ -42,11 +44,30 @@ type Snapshot struct {
 	Found       bool   // the conversation file exists
 	Items       []Item // the most recent preview items, oldest first
 	Pending     string // the tool call still waiting for a result, summarised
-	Usage       Usage  // tokens, including subagents
+	Usage       Usage  // tokens, including subagents; each message counts once
 	FirstPrompt string
 	Prompts     int
-	Subagents   int
+	Agents      []Agent // the session's subagents, in the order they started
 	// Activity counts Claude's records in the main conversation (Claude Code writes one
 	// per content block). It starts over if the file is rewritten, so it can go down.
 	Activity int
+}
+
+// Agent is a subagent: a conversation the session (or another subagent) started with
+// the Agent tool, kept in its own file next to the session's.
+type Agent struct {
+	ID          string // from its file name, agent-<ID>.jsonl
+	Parent      string // the ID of the subagent that started it; "" for the session
+	Type        string // e.g. "Explore"; "" if Claude didn't record it
+	Description string // the few words Claude gave the task
+	Items       []Item
+	Pending     string
+	// Usage is its own messages' tokens. A fork's file starts with a copy of the message
+	// that started it, which counts for whoever started it.
+	Usage Usage
+	Last  time.Time // its newest record
+	// Ended says Claude recorded that it finished after its last step: a notice that it
+	// stopped, or for one Claude waited on, the result of the call that started it. It
+	// can't say whether one is still running after its session stopped or restarted.
+	Ended bool
 }

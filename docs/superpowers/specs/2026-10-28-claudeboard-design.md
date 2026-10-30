@@ -55,7 +55,7 @@ Verified on 2026-10-28 against Claude Code 2.1.312. Everything claudeboard assum
 - Claude can't rename a session, and an interactive session drops out of `claude agents --json --all` once its terminal closes.
 - `--worktree <wt>` creates `<repo>/.claude/worktrees/<wt>` on branch `worktree-<wt>`. The session's reported `cwd` becomes the worktree path.
 
-List entries: `{pid, id, cwd, kind, sessionId, name, status, state, waitingFor}`. `id` is the short ID. `kind` is `"background"` or `"interactive"`; interactive entries carry `status` (`busy`/`idle`) but no `state` or `id`. A stopped background session is listed as `state: "stopped"` with no `pid` or `status`. A session that failed to start is listed as `state: "failed"`. Right after a launch, an entry can briefly appear with no `pid` yet, so a missing `pid` does not mean stopped.
+List entries: `{pid, id, cwd, kind, sessionId, name, status, state, waitingFor, startedAt}`. `startedAt` is when the session's process started, in Unix milliseconds. `id` is the short ID. `kind` is `"background"` or `"interactive"`; interactive entries carry `status` (`busy`/`idle`) but no `state` or `id`. A stopped background session is listed as `state: "stopped"` with no `pid` or `status`. A session that failed to start is listed as `state: "failed"`. Right after a launch, an entry can briefly appear with no `pid` yet, so a missing `pid` does not mean stopped.
 
 ### Status mapping
 
@@ -76,11 +76,13 @@ List entries: `{pid, id, cwd, kind, sessionId, name, status, state, waitingFor}`
 ### Transcripts
 
 - Main conversation: `~/.claude/projects/<dir>/<sessionId>.jsonl`, located with the glob `~/.claude/projects/*/<sessionId>.jsonl`. Nothing relies on how `<dir>` is encoded, so worktree sessions work too.
-- Subagents: `~/.claude/projects/<dir>/<sessionId>/subagents/agent-*.jsonl`, same record format.
+- Subagents: `~/.claude/projects/<dir>/<sessionId>/subagents/agent-<agentId>.jsonl`, same record format, every record marked `isSidechain: true`. Next to each is `agent-<agentId>.meta.json`: `agentType`, `description`, `toolUseId` (the `Agent` tool call that started it, in the session's file or, for a subagent started by a subagent, in that subagent's file), `requestShape` (`background` or `foreground`), and sometimes `finished: true` (verified 2026-10-29; older versions don't write it).
+- A fork's file (`agentType: "fork"`) starts with a `fork-context-ref` record, then repeats the record holding the `Agent` call that started it, with the same `message.id` and `usage` as in the file of whoever started it (verified 2026-10-29).
+- When a subagent stops, Claude Code writes a `type: "queue-operation"` record with `operation: "enqueue"` and a string `content` holding `<task-notification>…<task-id><agentId></task-id>…`. The `<tool-use-id>` in it names the call that last sent the subagent work, which is a later `SendMessage` when the subagent was given more to do, so only `<task-id>` identifies it. A subagent that is sent more work stops again later and gets another notice. On the 39 subagents on the development machine (2026-10-29), every one's latest notice was at or after its own last record.
 - One JSON object per line. Only two record types are used. All other types are ignored:
   - `type: "user"`: `message.content` is a string or an array of `text` / `tool_result` blocks. Records with `isMeta: true` are skipped.
   - `type: "assistant"`: `message.id`, `message.model`, `message.content` (array of `text` / `tool_use` blocks) and `message.usage`.
-- One API response can be written as several records with the same `message.id`. Usage is counted once per `message.id`.
+- One API response can be written as several records with the same `message.id`. Usage is counted once per `message.id`, across all of a session's files.
 - Usage fields summed: `input_tokens`, `output_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`.
 
 ### Gotchas
@@ -113,7 +115,7 @@ internal/
 - token totals split into input, output, cache read and cache write
 - the first prompt
 - the prompt count
-- the subagent count
+- the subagents, in the order they started: ID, the subagent that started it (if any: the one whose file holds the call, not counting a fork's own copy of it), type, description, its own preview items, pending call and tokens, the time of its last record, and whether it ended. A subagent has **ended** when the latest finished notice naming it, or for a foreground subagent the result of the call that started it, is at or after its last record; with neither, when its meta file says `finished`. A background subagent's call gets its result as soon as it starts, so that result doesn't count. The session's token totals include its subagents', with each message counted once: for the session's file if it has it, else for the oldest subagent that does, whoever started a subagent before it. So the record a fork's file copies counts for whoever started the fork, not in the fork's own tokens.
 
 Tool calls are summarised as the tool name plus one key argument: the file's base name for file tools, the first 60 characters of the command for Bash, the pattern for Grep/Glob, otherwise the name alone.
 
@@ -204,8 +206,10 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
     - **Looking** means coming back from the session with Ctrl+Z, or the cursor resting on it for at least 1 s while the preview is showing. That is checked when a refresh lands, so moving the cursor past a session doesn't count; the wait starts again whenever the selected row changes.
     - **Sessions claudeboard starts** (from the board or `claudeboard new`, or adopted by re-linking) are recorded with nothing seen, so a result that arrives while the board is closed still shows as unread. `claudeboard new` records what the user saw when they come back from the session it opened.
     - **First sight:** any other session the state has no record of (one claudeboard didn't start, or one recorded before read state existed) is recorded as seen when the board first sees it, whether or not its workflow is folded or archived, so existing sessions don't all start out unread.
-  - **Order never changes because of status,** so rows don't move under the cursor.
+  - **Subagent rows** follow their session: the running ones as a tree (`├ ● find payment code`, nested under the subagent that started them), with tokens, then one `└ ✓ N finished  [+]` line. The label is the first line of the description, cleaned like a session's. Enter on that line shows the finished ones under it (and hides them again). A subagent counts as running unless it has ended (section 5), its session isn't running (`Row.Running`), or its last record is older than the session's `startedAt`, since a subagent's work doesn't survive a restart. One with no timestamped record yet has just started, so it counts as running. Sessions without subagents have no extra rows. Subagents don't count in the header or workflow totals (their tokens are already in their session's).
+  - **Order never changes because of status,** so workflow and session rows don't move under the cursor. Subagent rows do. When the selected subagent's row goes (it finished while the finished line is folded, or its session stopped or restarted), the cursor moves to its session's finished line, or to the session if there is none. It never lands on another session, which Enter would open, `x` would stop and resting on would mark read.
 - **Right pane (preview):** the session name, repo (and worktree), token total and breakdown, and subagent count. If the session needs the user, it then shows what it is waiting on, including the pending tool call. Below that are the most recent preview items, following new output. PgUp/PgDn scroll. Prompts and replies are labelled in colour, with wrapped lines indented under the label; replies get light markdown (bold, inline code, headings, bullets, code blocks). Each tool call is one dimmed line (`› Bash  Run the tests`), a run of identical calls is shown once with a count, and the waiting-on line shows the command itself, since that is what a permission prompt asks about.
+- **Subagent preview:** the description, `subagent of <session>`, tokens, type and breakdown, `● working: <pending call>` or `✓ finished`, then its own conversation, which starts with the task its session gave it (labelled `task:` rather than `you:`). The finished line's preview lists the finished subagents with their tokens.
 - **Narrow terminals:** below 90 columns the preview is hidden by default; `p` toggles it.
 - **Token format:** `950`, `41k`, `1.24M`.
 
@@ -214,7 +218,7 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
 | Key | Action |
 |---|---|
 | ↑↓ / j k | move |
-| Enter | open the selected session (see below); on a workflow row, collapse/expand it |
+| Enter | open the selected session (see below); on a subagent, open its session; on a workflow row or a session's finished-subagents line, collapse/expand it |
 | Tab | jump to the next session that needs the user, in list order |
 | n | new session |
 | N | new session at once, in a new workflow with a random name |
@@ -231,7 +235,7 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
 | ? | help |
 | q | quit (sessions keep running) |
 
-`x` and `D` work on any background session, including ones in "Other sessions". `r` applies only to claudeboard's own sessions. On an interactive session, all three show "started in another terminal; switch to it there".
+`x` and `D` work on any background session, including ones in "Other sessions", and do nothing on subagent rows. `r` applies only to claudeboard's own sessions. On an interactive session, all three show "started in another terminal; switch to it there".
 
 Enter on a session:
 - **Running background session** (listed in any state other than `stopped`, `failed`, `crashed` or `exited`; resuming one that is running would start a copy), claudeboard's own or under Other sessions: opens it with `claude attach`. Ctrl+Z inside the session returns to the board, with the same row selected and the data refreshed. Before the board takes the terminal back it turns off the modes `claude attach` uses that the board doesn't set again itself (synchronized output, mouse, focus and colour-scheme reporting, scroll region, attributes, character set), in case attach didn't exit cleanly. The same applies after the trust-prompt `claude`.
@@ -287,7 +291,7 @@ No automated test runs the real `claude`.
   - pairing `tool_use` with `tool_result` (for the pending tool call)
   - an incomplete trailing line
   - a file that shrinks
-  - subagent files
+  - subagent files: meta, which subagent started which, and when one has ended (a notice after its last record, a notice it has since worked past, a foreground call's result, a background call's launch result, `finished` with no notice)
 - **Status mapping:** a table test covering every row of the mapping in section 4.
 - **Naming:** slug, session name, worktree name, and re-link parsing.
 - **store:** load/save round trip, concurrent `Update` calls, and corrupt-file recovery.

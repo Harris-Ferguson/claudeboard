@@ -29,8 +29,8 @@ var (
 )
 
 // bodyLines draws the conversation: a blank line before each prompt, and a run of the
-// same tool call shown once with a count.
-func bodyLines(items []transcript.Item, width int) []string {
+// same tool call shown once with a count. Prompts are labelled you, e.g. "you:".
+func bodyLines(items []transcript.Item, width int, you string) []string {
 	var out []string
 	for i := 0; i < len(items); i++ {
 		it := items[i]
@@ -46,7 +46,7 @@ func bodyLines(items []transcript.Item, width int) []string {
 		if it.Kind == transcript.ItemPrompt && len(out) > 0 {
 			out = append(out, "")
 		}
-		out = append(out, itemLines(it, width)...)
+		out = append(out, itemLines(it, width, you)...)
 	}
 	return out
 }
@@ -76,8 +76,8 @@ func toolLine(it transcript.Item, repeat, width int) string {
 // itemLines draws a prompt or a reply: its label, then the text wrapped to width under
 // a hanging indent, at most maxItemLines lines. Replies get light markdown: **bold**,
 // `code`, # headings, - bullets and ``` code blocks.
-func itemLines(it transcript.Item, width int) []string {
-	label, markdown := " "+styleYou.Render("you:")+" ", false
+func itemLines(it transcript.Item, width int, you string) []string {
+	label, markdown := " "+styleYou.Render(you)+" ", false
 	if it.Kind == transcript.ItemText {
 		label, markdown = " "+styleClaude.Render("claude:")+" ", true
 	}

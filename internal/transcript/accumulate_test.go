@@ -26,9 +26,9 @@ func fixtureLines(t *testing.T) [][]byte {
 }
 
 func TestAccumulatorBuildsPreviewAndUsage(t *testing.T) {
-	a := newAccumulator()
+	a := newAccumulator(false)
 	for _, l := range fixtureLines(t) {
-		a.add(l, true)
+		a.add(l)
 	}
 	s := a.snapshot()
 	want := []Item{
@@ -56,20 +56,28 @@ func TestAccumulatorBuildsPreviewAndUsage(t *testing.T) {
 	}
 }
 
-func TestSubagentLinesOnlyCountTokens(t *testing.T) {
-	a := newAccumulator()
-	a.add([]byte(`{"type":"user","message":{"content":"sub prompt"}}`), false)
-	a.add([]byte(`{"type":"assistant","message":{"id":"m","content":[{"type":"text","text":"sub"}],"usage":{"output_tokens":100}}}`), false)
-	s := a.snapshot()
-	if len(s.Items) != 0 || s.Prompts != 0 || s.Usage.Output != 100 {
-		t.Errorf("snapshot = %+v", s)
+func TestSidechainLinesOnlyCountTokensInASessionFile(t *testing.T) {
+	lines := []string{
+		`{"type":"user","isSidechain":true,"message":{"content":"sub prompt"}}`,
+		`{"type":"assistant","isSidechain":true,"message":{"id":"m","content":[{"type":"text","text":"sub"}],"usage":{"output_tokens":100}}}`,
+	}
+	main, side := newAccumulator(false), newAccumulator(true)
+	for _, l := range lines {
+		main.add([]byte(l))
+		side.add([]byte(l))
+	}
+	if s := main.snapshot(); len(s.Items) != 0 || s.Prompts != 0 || s.Usage.Output != 100 {
+		t.Errorf("session file: snapshot = %+v", s)
+	}
+	if s := side.snapshot(); len(s.Items) != 2 || s.Prompts != 1 || s.Usage.Output != 100 {
+		t.Errorf("subagent file: snapshot = %+v", s)
 	}
 }
 
 func TestItemsAreCapped(t *testing.T) {
-	a := newAccumulator()
+	a := newAccumulator(false)
 	for i := 0; i < 250; i++ {
-		a.add([]byte(fmt.Sprintf(`{"type":"user","message":{"content":"prompt %d"}}`, i)), true)
+		a.add([]byte(fmt.Sprintf(`{"type":"user","message":{"content":"prompt %d"}}`, i)))
 	}
 	s := a.snapshot()
 	if len(s.Items) != maxItems || s.Items[maxItems-1].Text != "prompt 249" || s.Prompts != 250 {
@@ -115,10 +123,10 @@ func TestSummarize(t *testing.T) {
 }
 
 func TestPreviewToolItemsPreferBashDescriptions(t *testing.T) {
-	a := newAccumulator()
-	a.add([]byte(`{"type":"assistant","message":{"id":"m","content":[`+
-		`{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"cd /w && M=origin/master; git show \"$M\":x","description":"Show x on master"}},`+
-		`{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"cd /w && ls"}}]}}`), true)
+	a := newAccumulator(false)
+	a.add([]byte(`{"type":"assistant","message":{"id":"m","content":[` +
+		`{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"cd /w && M=origin/master; git show \"$M\":x","description":"Show x on master"}},` +
+		`{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"cd /w && ls"}}]}}`))
 	want := []Item{
 		{Kind: ItemTool, Tool: "Bash", Text: "Show x on master"},
 		{Kind: ItemTool, Tool: "Bash", Text: "ls"},
@@ -129,20 +137,20 @@ func TestPreviewToolItemsPreferBashDescriptions(t *testing.T) {
 }
 
 func TestToolSearchIsLeftOut(t *testing.T) {
-	a := newAccumulator()
-	a.add([]byte(`{"type":"assistant","message":{"id":"m","content":[{"type":"tool_use","id":"t1","name":"ToolSearch","input":{"query":"select:Read"}}]}}`), true)
+	a := newAccumulator(false)
+	a.add([]byte(`{"type":"assistant","message":{"id":"m","content":[{"type":"tool_use","id":"t1","name":"ToolSearch","input":{"query":"select:Read"}}]}}`))
 	if s := a.snapshot(); len(s.Items) != 0 || s.Pending != "" {
 		t.Errorf("ToolSearch (Claude loading its own tools) shown: %+v", s)
 	}
 }
 
 func TestPromptsThatStartWithMarkupAreKept(t *testing.T) {
-	a := newAccumulator()
+	a := newAccumulator(false)
 	for _, content := range []string{"<?php echo 'hi';", "<template>fix this</template>"} {
-		a.add([]byte(fmt.Sprintf(`{"type":"user","message":{"content":%q}}`, content)), true)
+		a.add([]byte(fmt.Sprintf(`{"type":"user","message":{"content":%q}}`, content)))
 	}
 	for _, wrapper := range []string{"<command-name>/model</command-name>", "<local-command-stdout>ok</local-command-stdout>", "<bash-input>ls</bash-input>"} {
-		a.add([]byte(fmt.Sprintf(`{"type":"user","message":{"content":%q}}`, wrapper)), true)
+		a.add([]byte(fmt.Sprintf(`{"type":"user","message":{"content":%q}}`, wrapper)))
 	}
 	s := a.snapshot()
 	if s.Prompts != 2 || s.FirstPrompt != "<?php echo 'hi';" {
@@ -157,12 +165,11 @@ func TestFreshLeavesOutCacheReads(t *testing.T) {
 }
 
 func TestActivityCountsClaudesRecords(t *testing.T) {
-	a := newAccumulator()
-	a.add([]byte(`{"type":"user","message":{"content":"go"}}`), true)
-	a.add([]byte(`{"type":"assistant","message":{"id":"m1","content":[{"type":"text","text":"on it"}]}}`), true)
-	a.add([]byte(`{"type":"assistant","message":{"id":"m2","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"ls"}}]}}`), true)
-	a.add([]byte(`{"type":"assistant","message":{"id":"s1","content":[{"type":"text","text":"sub"}]}}`), false)
-	a.add([]byte(`{"type":"assistant","isSidechain":true,"message":{"id":"s2","content":[{"type":"text","text":"side"}]}}`), true)
+	a := newAccumulator(false)
+	a.add([]byte(`{"type":"user","message":{"content":"go"}}`))
+	a.add([]byte(`{"type":"assistant","message":{"id":"m1","content":[{"type":"text","text":"on it"}]}}`))
+	a.add([]byte(`{"type":"assistant","message":{"id":"m2","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"ls"}}]}}`))
+	a.add([]byte(`{"type":"assistant","isSidechain":true,"message":{"id":"s2","content":[{"type":"text","text":"side"}]}}`))
 	if got := a.snapshot().Activity; got != 2 {
 		t.Errorf("Activity = %d, want 2 (Claude's records in the main conversation only)", got)
 	}

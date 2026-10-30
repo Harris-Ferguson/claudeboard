@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // maxItems is how many preview items a snapshot keeps.
@@ -14,7 +15,10 @@ type record struct {
 	Type        string          `json:"type"`
 	IsMeta      bool            `json:"isMeta"`
 	IsSidechain bool            `json:"isSidechain"`
+	Timestamp   string          `json:"timestamp"`
 	Message     json.RawMessage `json:"message"`
+	Operation   string          `json:"operation"` // queue-operation records
+	Content     json.RawMessage `json:"content"`   // queue-operation records: what was queued
 }
 
 type message struct {
@@ -48,8 +52,11 @@ func blocks(content json.RawMessage) []block {
 	return bs
 }
 
-// accumulator folds transcript lines into a Snapshot.
+// accumulator folds one conversation file's lines into a Snapshot.
 type accumulator struct {
+	// side is set for a subagent's own file, whose records are all marked sidechain. In
+	// a session's file, sidechain records belong to subagents and are left out.
+	side         bool
 	items        []Item
 	usage        map[string]Usage  // by API message ID, so repeated records count once
 	pending      map[string]string // tool_use ID → summary, until its result arrives
@@ -57,17 +64,39 @@ type accumulator struct {
 	firstPrompt  string
 	prompts      int
 	activity     int
+	first, last  time.Time // the oldest and newest record
+
+	agentCalls map[string]bool      // IDs of the calls here that started subagents
+	results    map[string]time.Time // when those calls got their result
+	notified   map[string]time.Time // the latest "task finished" notice, by agent ID
 }
 
-func newAccumulator() *accumulator {
-	return &accumulator{usage: map[string]Usage{}, pending: map[string]string{}}
+func newAccumulator(side bool) *accumulator {
+	return &accumulator{side: side, usage: map[string]Usage{}, pending: map[string]string{},
+		agentCalls: map[string]bool{}, results: map[string]time.Time{}, notified: map[string]time.Time{}}
 }
 
 // add applies one line. Lines that aren't JSON, or are record types claudeboard doesn't
-// use, are ignored. Subagent files (main == false) only contribute tokens.
-func (a *accumulator) add(line []byte, main bool) {
+// use, are ignored.
+func (a *accumulator) add(line []byte) {
 	var r record
-	if json.Unmarshal(line, &r) != nil || len(r.Message) == 0 {
+	if json.Unmarshal(line, &r) != nil {
+		return
+	}
+	at, _ := time.Parse(time.RFC3339Nano, r.Timestamp)
+	if !at.IsZero() {
+		if a.first.IsZero() || at.Before(a.first) {
+			a.first = at
+		}
+		if at.After(a.last) {
+			a.last = at
+		}
+	}
+	if r.Type == "queue-operation" && r.Operation == "enqueue" {
+		a.notice(r.Content, at)
+		return
+	}
+	if len(r.Message) == 0 {
 		return
 	}
 	var m message
@@ -84,7 +113,7 @@ func (a *accumulator) add(line []byte, main bool) {
 				CacheWrite: m.Usage.CacheCreationInputTokens,
 			}
 		}
-		if !main || r.IsSidechain {
+		if r.IsSidechain && !a.side {
 			return
 		}
 		a.activity++
@@ -95,6 +124,9 @@ func (a *accumulator) add(line []byte, main bool) {
 					a.push(Item{Kind: ItemText, Text: t})
 				}
 			case "tool_use":
+				if (b.Name == "Agent" || b.Name == "Task") && b.ID != "" {
+					a.agentCalls[b.ID] = true
+				}
 				if hiddenTools[b.Name] {
 					continue
 				}
@@ -107,7 +139,7 @@ func (a *accumulator) add(line []byte, main bool) {
 			}
 		}
 	case "user":
-		if !main || r.IsMeta || r.IsSidechain {
+		if r.IsMeta || (r.IsSidechain && !a.side) {
 			return
 		}
 		var texts []string
@@ -119,6 +151,9 @@ func (a *accumulator) add(line []byte, main bool) {
 				}
 			case "tool_result":
 				delete(a.pending, b.ToolUseID)
+				if a.agentCalls[b.ToolUseID] {
+					a.results[b.ToolUseID] = at
+				}
 			}
 		}
 		if len(texts) == 0 {
@@ -150,6 +185,24 @@ func isSystemText(t string) bool {
 	return false
 }
 
+// taskID finds the agent IDs in a notification Claude Code queues for the session.
+var taskID = regexp.MustCompile(`<task-id>([^<]+)</task-id>`)
+
+// notice records a queued "task finished" notification: Claude Code queues one each time
+// a subagent stops. It names the agent by ID; the tool call it names may be a later
+// message to the agent rather than the call that started it.
+func (a *accumulator) notice(content json.RawMessage, at time.Time) {
+	var s string
+	if json.Unmarshal(content, &s) != nil || !strings.HasPrefix(s, "<task-notification>") {
+		return
+	}
+	for _, m := range taskID.FindAllStringSubmatch(s, -1) {
+		if at.After(a.notified[m[1]]) {
+			a.notified[m[1]] = at
+		}
+	}
+}
+
 func (a *accumulator) push(it Item) {
 	a.items = append(a.items, it)
 	if len(a.items) > maxItems {
@@ -168,16 +221,21 @@ func (a *accumulator) pendingTool() string {
 	return ""
 }
 
-func (a *accumulator) snapshot() Snapshot {
+// total is the tokens of this file's messages.
+func (a *accumulator) total() Usage {
 	var u Usage
 	for _, v := range a.usage {
 		u = u.plus(v)
 	}
+	return u
+}
+
+func (a *accumulator) snapshot() Snapshot {
 	return Snapshot{
 		Found:       true,
 		Items:       append([]Item(nil), a.items...),
 		Pending:     a.pendingTool(),
-		Usage:       u,
+		Usage:       a.total(),
 		FirstPrompt: a.firstPrompt,
 		Prompts:     a.prompts,
 		Activity:    a.activity,

@@ -25,7 +25,7 @@ func TestParseAgents(t *testing.T) {
 	}
 	want := Session{PID: 102, ShortID: "bbbb2222", Cwd: "/work/web", Kind: KindBackground,
 		SessionID: "bbbb2222-0000-4000-8000-000000000002", Name: "cb-payments-v2-2",
-		Status: "waiting", State: "blocked", WaitingFor: "permission prompt"}
+		Status: "waiting", State: "blocked", WaitingFor: "permission prompt", StartedAt: 1793248550286}
 	if got[1] != want {
 		t.Errorf("blocked entry = %+v", got[1])
 	}

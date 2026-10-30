@@ -21,7 +21,7 @@ func stripAll(lines []string) []string {
 func TestReplyMarkdownIsStyled(t *testing.T) {
 	it := transcript.Item{Kind: transcript.ItemText,
 		Text: "**Done.** Ran `go test` again.\n\n\n## Next steps\n- fix the *bug*\n  - nested\n```go\n  return nil\n```"}
-	lines := itemLines(it, 60)
+	lines := itemLines(it, 60, "you:")
 	want := []string{
 		" claude: Done. Ran go test again.",
 		"",
@@ -43,7 +43,7 @@ func TestReplyMarkdownIsStyled(t *testing.T) {
 }
 
 func TestPromptsAreNotReadAsMarkdown(t *testing.T) {
-	lines := itemLines(transcript.Item{Kind: transcript.ItemPrompt, Text: "rename **kwargs to `opts`"}, 60)
+	lines := itemLines(transcript.Item{Kind: transcript.ItemPrompt, Text: "rename **kwargs to `opts`"}, 60, "you:")
 	if got := stripAll(lines); !reflect.DeepEqual(got, []string{" you: rename **kwargs to `opts`"}) {
 		t.Errorf("lines = %q", got)
 	}
@@ -56,7 +56,7 @@ func TestWrappedTextKeepsItsIndentAndWidth(t *testing.T) {
 	text := strings.Repeat("x", 80) + " 修复结账页面的错误修复结账页面的错误 " + strings.Repeat("word ", 100)
 	for _, kind := range []transcript.ItemKind{transcript.ItemPrompt, transcript.ItemText} {
 		for _, w := range []int{20, 37, 60} {
-			lines := itemLines(transcript.Item{Kind: kind, Text: text}, w)
+			lines := itemLines(transcript.Item{Kind: kind, Text: text}, w, "you:")
 			if len(lines) > maxItemLines {
 				t.Errorf("width %d: %d lines, want at most %d", w, len(lines), maxItemLines)
 			}
@@ -108,7 +108,7 @@ func TestSpacingInsideALineIsKept(t *testing.T) {
 			" you: why does  a    b  differ",
 		}},
 	} {
-		if got := stripAll(itemLines(tc.it, 60)); !reflect.DeepEqual(got, tc.want) {
+		if got := stripAll(itemLines(tc.it, 60, "you:")); !reflect.DeepEqual(got, tc.want) {
 			t.Errorf("%s:\n%q\nwant:\n%q", tc.name, got, tc.want)
 		}
 	}
@@ -124,7 +124,7 @@ func TestLongSpaceRunBreaksTheLine(t *testing.T) {
 		{"a" + strings.Repeat(" ", 40) + "b", []string{" claude: a", "   b"}},
 		{"```\nab" + strings.Repeat(" ", 40) + "cd\n```", []string{" claude: ab", "   cd"}},
 	} {
-		lines := itemLines(transcript.Item{Kind: transcript.ItemText, Text: tc.text}, 20)
+		lines := itemLines(transcript.Item{Kind: transcript.ItemText, Text: tc.text}, 20, "you:")
 		if got := stripAll(lines); !reflect.DeepEqual(got, tc.want) {
 			t.Errorf("%q:\n%q\nwant:\n%q", tc.text, got, tc.want)
 		}
@@ -154,7 +154,7 @@ func TestBodyCollapsesRepeatedToolCalls(t *testing.T) {
 		"",
 		" you: thanks",
 	}
-	if got := stripAll(bodyLines(items, 60)); !reflect.DeepEqual(got, want) {
+	if got := stripAll(bodyLines(items, 60, "you:")); !reflect.DeepEqual(got, want) {
 		t.Errorf("body:\n%q\nwant:\n%q", got, want)
 	}
 }

@@ -54,7 +54,7 @@ Run `claudeboard`.
 | Key | Does |
 |---|---|
 | ↑↓ / j k | move |
-| Enter | open the session; **Ctrl+Z inside it comes back to the board**. On a workflow: fold/unfold |
+| Enter | open the session; **Ctrl+Z inside it comes back to the board**. On a subagent: open its session. On a workflow, or a session's "✓ N finished" subagents line: fold/unfold |
 | Tab | jump to the next session that needs you |
 | n | new session: pick a workflow, then a folder, and Claude opens straight away |
 | N | new session at once, in a new workflow with a random name (like `amber-otter`), in the selected row's folder; asks only about a worktree if that folder is busy |
@@ -82,6 +82,24 @@ claudeboard starts, from the board or with `claudeboard new`, begin with nothing
 so a result that comes in while the board is closed still shows. Sessions claudeboard
 didn't start (under Other sessions), and ones from before it kept read state, start
 out read the first time the board sees them.
+
+Subagents a session starts are listed under it as a tree, with their tokens:
+
+```
+│   ● api  wire the new Aft… 41k │
+│   ├ ● find payment code    8.0k│
+│   │ └ ● look at the tests  2.0k│
+│   └ ✓ 4 finished  [+]      21k │
+```
+
+Running ones are listed one by one; finished ones fold into one line, and Enter on it
+shows them. Select a subagent to see its own conversation in the preview, starting with
+the task its session gave it; Enter on it opens its session. claudeboard works out that
+a subagent has finished from the notice Claude Code queues for its session when it
+stops, so it can take a refresh (1.5 s) to move into the finished line. One whose
+session has stopped or restarted since it last did anything counts as finished. If the
+cursor is on a subagent when it moves into the folded finished line, the cursor goes
+to that line.
 
 Token counts on rows, workflows and in the header are the tokens each session added:
 input, output and cache writes. They leave out cache reads, which re-count the same
