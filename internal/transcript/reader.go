@@ -92,10 +92,7 @@ func (r *Reader) Update() (Snapshot, error) {
 		r.reset()
 	}
 	s := r.acc.snapshot()
-	s.Agents = r.agentList()
-	for _, a := range s.Agents {
-		s.Usage = s.Usage.plus(a.Usage)
-	}
+	s.Agents, s.Usage = r.agentList()
 	return s, nil
 }
 
@@ -134,34 +131,84 @@ func (f *agentFile) readMeta(path string) {
 	}
 }
 
-// agentList builds the session's subagents, oldest first. A subagent's parent is the
-// subagent whose file holds the call that started it.
-func (r *Reader) agentList() []Agent {
-	caller := map[string]string{} // call ID → the ID of the subagent that made it
-	ids := map[*agentFile]string{}
+// agentList builds the session's subagents, oldest first, and the session's tokens
+// including theirs.
+func (r *Reader) agentList() ([]Agent, Usage) {
+	type file struct {
+		*agentFile
+		id, parent string
+		usage      Usage // its own messages' tokens
+		done       bool  // its usage has been worked out
+	}
+	files := make([]*file, 0, len(r.agents))
 	for p, f := range r.agents {
-		id := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(p), "agent-"), ".jsonl")
-		ids[f] = id
+		files = append(files, &file{agentFile: f, id: strings.TrimSuffix(strings.TrimPrefix(filepath.Base(p), "agent-"), ".jsonl")})
+	}
+	sort.Slice(files, func(i, j int) bool {
+		a, b := files[i].acc.first, files[j].acc.first
+		if !a.Equal(b) {
+			return a.Before(b)
+		}
+		return files[i].id < files[j].id
+	})
+
+	// A subagent's parent is the subagent whose file holds the call that started it. A
+	// fork's own file repeats that call, which doesn't make it its own parent.
+	byID := map[string]*file{}
+	callers := map[string][]*file{} // call ID → the files holding it, oldest first
+	for _, f := range files {
+		byID[f.id] = f
 		for call := range f.acc.agentCalls {
-			caller[call] = id
+			callers[call] = append(callers[call], f)
 		}
 	}
+	for _, f := range files {
+		for _, c := range callers[f.meta.ToolUseID] {
+			if c != f {
+				f.parent = c.id
+				break
+			}
+		}
+	}
+
+	// The record a fork's file repeats has the same message ID and usage as in the file
+	// of whoever started it, so each message counts once: for the session's file if it
+	// has it, else for the oldest subagent that does, counting whoever started a
+	// subagent before it.
+	total, counted := r.acc.total(), map[string]bool{}
+	var count func(f *file)
+	count = func(f *file) {
+		if f.done {
+			return
+		}
+		f.done = true
+		if p := byID[f.parent]; p != nil {
+			count(p)
+		}
+		for msg, u := range f.acc.usage {
+			if _, inSession := r.acc.usage[msg]; !inSession && !counted[msg] {
+				counted[msg] = true
+				f.usage = f.usage.plus(u)
+			}
+		}
+		total = total.plus(f.usage)
+	}
+	for _, f := range files {
+		count(f)
+	}
+
 	accs := []*accumulator{r.acc}
-	for f := range ids {
+	for _, f := range files {
 		accs = append(accs, f.acc)
 	}
-	type started struct {
-		a     Agent
-		first time.Time
-	}
-	list := make([]started, 0, len(ids))
-	for f, id := range ids {
+	out := make([]Agent, len(files))
+	for i, f := range files {
 		snap := f.acc.snapshot()
-		a := Agent{ID: id, Parent: caller[f.meta.ToolUseID], Type: f.meta.AgentType, Description: f.meta.Description,
-			Items: snap.Items, Pending: snap.Pending, Usage: snap.Usage, Last: f.acc.last}
+		a := Agent{ID: f.id, Parent: f.parent, Type: f.meta.AgentType, Description: f.meta.Description,
+			Items: snap.Items, Pending: snap.Pending, Usage: f.usage, Last: f.acc.last}
 		var end time.Time
 		for _, acc := range accs {
-			if t := acc.notified[id]; t.After(end) {
+			if t := acc.notified[f.id]; t.After(end) {
 				end = t
 			}
 			if t := acc.results[f.meta.ToolUseID]; f.meta.RequestShape != "background" && t.After(end) {
@@ -170,19 +217,9 @@ func (r *Reader) agentList() []Agent {
 			}
 		}
 		a.Ended = (!end.IsZero() && !end.Before(a.Last)) || (end.IsZero() && f.meta.Finished)
-		list = append(list, started{a, f.acc.first})
+		out[i] = a
 	}
-	sort.Slice(list, func(i, j int) bool {
-		if !list[i].first.Equal(list[j].first) {
-			return list[i].first.Before(list[j].first)
-		}
-		return list[i].a.ID < list[j].a.ID
-	})
-	out := make([]Agent, len(list))
-	for i, s := range list {
-		out[i] = s.a
-	}
-	return out
+	return out, total
 }
 
 // read feeds the complete lines appended to path since the last call to acc. It

@@ -200,3 +200,68 @@ func TestSubagentMetaIsReread(t *testing.T) {
 		t.Error("a changed meta file wasn't read again")
 	}
 }
+
+// forkCall is a record of message msgID holding an Agent call that starts a fork. The
+// fork's own file repeats it, sidechain, with the same message ID and usage.
+func forkCall(sec int, msgID, toolUseID string, cacheWrite, out int, sidechain bool) string {
+	return fmt.Sprintf(`{"type":"assistant","isSidechain":%v,"timestamp":%q,"message":{"id":%q,"content":[{"type":"tool_use","id":%q,"name":"Agent","input":{"description":"refactor","prompt":"go","subagent_type":"fork"}}],"usage":{"input_tokens":2,"output_tokens":%d,"cache_creation_input_tokens":%d}}}`+"\n",
+		sidechain, at(sec), msgID, toolUseID, out, cacheWrite)
+}
+
+// subResult is the result of tool call toolUseID in a subagent's own file.
+func subResult(sec int, toolUseID, text string) string {
+	return strings.Replace(toolResult(sec, toolUseID, text), `"type":"user"`, `"type":"user","isSidechain":true`, 1)
+}
+
+func forkMeta(toolUseID string) string {
+	return fmt.Sprintf(`{"agentType":"fork","isFork":true,"description":"refactor","toolUseId":%q,"spawnDepth":1,"requestShape":"background"}`, toolUseID)
+}
+
+func TestForkDoesNotDoubleCountItsParentsMessage(t *testing.T) {
+	projects := t.TempDir()
+	main := writeSession(t, projects, "s1", promptLine+forkCall(1, "m-parent", "tu1", 50000, 3000, false)+
+		toolResult(2, "tu1", "Async agent launched"))
+	writeAgent(t, main, "a1",
+		`{"type":"fork-context-ref"}`+"\n"+
+			forkCall(1, "m-parent", "tu1", 50000, 3000, true)+
+			subResult(2, "tu1", "fork started")+
+			subStep(5, "own1", "ls", 100),
+		forkMeta("tu1"))
+	s := mustUpdate(t, NewReader(projects, "s1"))
+	if want := (Usage{Input: 2, Output: 3100, CacheWrite: 50000}); s.Usage != want {
+		t.Errorf("session usage = %+v, want %+v", s.Usage, want)
+	}
+	if a := s.Agents[0]; a.Usage != (Usage{Output: 100}) || a.Parent != "" {
+		t.Errorf("fork usage %+v, Parent %q; want only its own step, and the session as its parent", a.Usage, a.Parent)
+	}
+}
+
+func TestForkOfASubagentDoesNotDoubleCountItsParentsMessage(t *testing.T) {
+	projects := t.TempDir()
+	main := writeSession(t, projects, "s1", promptLine+agentCall(1, "tu1", "plan")+toolResult(2, "tu1", "Async agent launched"))
+	writeAgent(t, main, "a1",
+		subPrompt(1, "plan it")+forkCall(3, "m-plan", "tu2", 40000, 2000, true)+subResult(4, "tu2", "Async agent launched"),
+		backgroundMeta("tu1", "Plan", "plan"))
+	writeAgent(t, main, "a2",
+		`{"type":"fork-context-ref"}`+"\n"+
+			forkCall(3, "m-plan", "tu2", 40000, 2000, true)+
+			subResult(4, "tu2", "fork started")+
+			subStep(6, "own2", "ls", 100),
+		forkMeta("tu2"))
+	for range 5 { // map order must not matter
+		s := mustUpdate(t, NewReader(projects, "s1"))
+		if want := (Usage{Input: 2, Output: 2100, CacheWrite: 40000}); s.Usage != want {
+			t.Errorf("session usage = %+v, want %+v", s.Usage, want)
+		}
+		if len(s.Agents) != 2 || s.Agents[0].ID != "a1" {
+			t.Fatalf("Agents = %+v", s.Agents)
+		}
+		plan, fork := s.Agents[0], s.Agents[1]
+		if want := (Usage{Input: 2, Output: 2000, CacheWrite: 40000}); plan.Usage != want || plan.Parent != "" {
+			t.Errorf("a1 usage %+v, Parent %q; want %+v and the session", plan.Usage, plan.Parent, want)
+		}
+		if fork.Usage != (Usage{Output: 100}) || fork.Parent != "a1" {
+			t.Errorf("fork usage %+v, Parent %q; want only its own step, and a1 as its parent", fork.Usage, fork.Parent)
+		}
+	}
+}

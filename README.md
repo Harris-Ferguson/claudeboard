@@ -97,7 +97,9 @@ shows them. Select a subagent to see its own conversation in the preview, starti
 the task its session gave it; Enter on it opens its session. claudeboard works out that
 a subagent has finished from the notice Claude Code queues for its session when it
 stops, so it can take a refresh (1.5 s) to move into the finished line. One whose
-session has stopped or restarted since it last did anything counts as finished.
+session has stopped or restarted since it last did anything counts as finished. If the
+cursor is on a subagent when it moves into the folded finished line, the cursor goes
+to that line.
 
 Token counts on rows, workflows and in the header are the tokens each session added:
 input, output and cache writes. They leave out cache reads, which re-count the same

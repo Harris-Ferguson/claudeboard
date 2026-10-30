@@ -122,6 +122,21 @@ func TestSubagentsFromBeforeARestartAreFinished(t *testing.T) {
 	}
 }
 
+func TestNewSubagentWithNothingTimestampedIsRunning(t *testing.T) {
+	// Its file has no timestamped record yet, so its Last is zero, which is before any
+	// restart: it has only just started.
+	live := &claudecli.Session{State: "working", StartedAt: testNow.Add(-30 * time.Second).UnixMilli()}
+	owner := Row{Kind: RowSession, Live: live,
+		Snap: transcript.Snapshot{Agents: []transcript.Agent{{ID: "new", Description: "just started"}}}}
+	if got := treeOf(agentRows(owner, true)); strings.Join(got, "\n") != "└ ● just started" {
+		t.Errorf("tree: %q, want it running", got)
+	}
+	live.State = "stopped"
+	if got := treeOf(agentRows(owner, true)); strings.Join(got, "\n") != "└ ✓ 1 finished\n  └ ✓ just started" {
+		t.Errorf("session stopped: tree %q, want it finished", got)
+	}
+}
+
 func TestSessionsWithoutSubagentsGetNoRows(t *testing.T) {
 	m, _ := testModel(t, 100, 30)
 	for _, r := range m.rows {
@@ -226,5 +241,129 @@ func TestSubagentRowStatus(t *testing.T) {
 	m, _ := withAgentsModel(t, 100, 30)
 	if r := m.rows[2]; r.Status.Kind != status.Working || r.Tokens != 8000 {
 		t.Errorf("running subagent: status %v, tokens %d", r.Status, r.Tokens)
+	}
+}
+
+func TestSubagentLabelIsOneCleanLine(t *testing.T) {
+	m, _ := withAgentsModel(t, 110, 20)
+	agents := agentsFixture()
+	agents[0].Description = "find\tpayment code\nand the refunds" // running: its row and preview title
+	agents[1].Description = "map the\tcheckout\nand the cart"     // finished: in the finished line's list
+	setAgents(&m, agents)
+	for _, c := range []struct {
+		cursor int
+		want   string
+	}{{2, "find    payment code · subagent of"}, {5, "✓ map the    checkout · 5.0k tokens"}} {
+		m.cursor = c.cursor
+		out := m.render()
+		assertBox(t, out, 110, 20)
+		plain := ansi.Strip(out)
+		if !strings.Contains(plain, c.want) || strings.Contains(plain, "and the") || strings.Contains(plain, "\t") {
+			t.Errorf("cursor %d: want %q on one line, without what follows the newline:\n%s", c.cursor, c.want, plain)
+		}
+	}
+}
+
+// setAgents gives cb-payments-v2-1 these subagents and rebuilds the rows.
+func setAgents(m *Model, agents []transcript.Agent) {
+	snap := m.snaps["id-1"]
+	snap.Agents = agents
+	m.snaps["id-1"] = snap
+	m.rebuild()
+}
+
+func TestCursorFollowsASubagentThatFinishes(t *testing.T) {
+	// With the finished line folded, the subagent's row goes into it.
+	m, _ := withAgentsModel(t, 110, 30)
+	m.cursor = 2 // "find payment code" (a1)
+	agents := agentsFixture()
+	agents[0].Ended = true
+	setAgents(&m, agents)
+	if r, _ := m.selected(); r.Kind != RowAgentsFolded || r.Owner.Session.Name != "cb-payments-v2-1" {
+		t.Errorf("cursor is on %q, want cb-payments-v2-1's finished line", r.Name())
+	}
+}
+
+func TestCursorStaysOnASubagentThatFinishesWhileTheLineIsOpen(t *testing.T) {
+	m, _ := withAgentsModel(t, 110, 30)
+	m.openAgents["s:id-1"] = true
+	m.cursor = 2 // "find payment code" (a1)
+	agents := agentsFixture()
+	agents[0].Ended = true
+	setAgents(&m, agents)
+	if r, _ := m.selected(); r.Kind != RowAgent || r.Agent.ID != "a1" {
+		t.Errorf("cursor is on %q, want find payment code, now under the finished line", r.Name())
+	}
+}
+
+func TestCursorStaysOnASubagentWhenAnotherFinishes(t *testing.T) {
+	m, _ := withAgentsModel(t, 110, 30)
+	m.cursor = 4 // "review the diff" (a3)
+	agents := agentsFixture()
+	agents[0].Ended = true // a1 folds away, so a3 moves up
+	setAgents(&m, agents)
+	if r, _ := m.selected(); r.Kind != RowAgent || r.Agent.ID != "a3" {
+		t.Errorf("cursor is on %q, want review the diff", r.Name())
+	}
+}
+
+func TestCursorStaysOnAWorkflowThatFolds(t *testing.T) {
+	m, _ := withAgentsModel(t, 110, 30)
+	m.cursor = 0 // payments-v2, over cb-payments-v2-1 and its subagents
+	m, _ = press(t, m, "enter")
+	if r, _ := m.selected(); r.Kind != RowWorkflow || r.Workflow.Slug != "payments-v2" || !r.Collapsed {
+		t.Errorf("cursor is on %q", r.Name())
+	}
+}
+
+func TestCursorWhenTheSessionStops(t *testing.T) {
+	// All its subagents fold into the finished line.
+	m, _ := withAgentsModel(t, 110, 30)
+	m.cursor = 4 // "review the diff" (a3)
+	m.live[0].State = "stopped"
+	m.rebuild()
+	if r, _ := m.selected(); r.Kind != RowAgentsFolded || r.Owner.Session.Name != "cb-payments-v2-1" {
+		t.Errorf("cursor is on %q, want cb-payments-v2-1's finished line", r.Name())
+	}
+}
+
+func TestCursorGoesToTheSessionWhenItsFinishedLineGoes(t *testing.T) {
+	m, _ := withAgentsModel(t, 110, 30)
+	m.cursor = 5 // "✓ 2 finished"
+	setAgents(&m, agentsFixture()[:1])
+	if r, _ := m.selected(); r.Kind != RowSession || r.Session.Name != "cb-payments-v2-1" {
+		t.Errorf("cursor is on %q, want cb-payments-v2-1", r.Name())
+	}
+	m.cursor = 2 // "find payment code", its only subagent
+	setAgents(&m, nil)
+	if r, _ := m.selected(); r.Kind != RowSession || r.Session.Name != "cb-payments-v2-1" {
+		t.Errorf("cursor is on %q, want cb-payments-v2-1", r.Name())
+	}
+}
+
+func TestCursorLandsOnAnotherSession(t *testing.T) {
+	// The session of a selected subagent stops: the cursor must not land on the next
+	// session down, which would then be marked read, opened by enter and stopped by x.
+	m, src := unreadModel(t, 110, map[string]int{"id-1": 1, "id-2": 1, "id-3": 1})
+	m.height = 30
+	advance := clock(&m)
+	last := testNow.Add(-time.Minute)
+	setAgents(&m, []transcript.Agent{{ID: "a1", Description: "find payment code", Last: last},
+		{ID: "a3", Description: "review the diff", Last: last}})
+	m.cursor = 3 // "review the diff"
+	m.noteCursor()
+	m.live[0].State = "stopped"
+	m.applyRefresh(refreshWith(m))
+	advance(2 * time.Second)
+	m.applyRefresh(refreshWith(m))
+	if m.state.Seen["id-2"] != 1 {
+		t.Errorf("cb-payments-v2-2 marked read (seen %d)", m.state.Seen["id-2"])
+	}
+	if _, cmd := press(t, m, "enter"); cmd != nil && len(src.attached) > 0 {
+		t.Errorf("enter attached %v", src.attached)
+	}
+	if _, cmd := press(t, m, "x"); cmd != nil {
+		cmd()
+		t.Errorf("x stopped %v", src.stopped)
 	}
 }

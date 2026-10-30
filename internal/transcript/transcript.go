@@ -44,7 +44,7 @@ type Snapshot struct {
 	Found       bool   // the conversation file exists
 	Items       []Item // the most recent preview items, oldest first
 	Pending     string // the tool call still waiting for a result, summarised
-	Usage       Usage  // tokens, including subagents
+	Usage       Usage  // tokens, including subagents; each message counts once
 	FirstPrompt string
 	Prompts     int
 	Agents      []Agent // the session's subagents, in the order they started
@@ -62,8 +62,10 @@ type Agent struct {
 	Description string // the few words Claude gave the task
 	Items       []Item
 	Pending     string
-	Usage       Usage
-	Last        time.Time // its newest record
+	// Usage is its own messages' tokens. A fork's file starts with a copy of the message
+	// that started it, which counts for whoever started it.
+	Usage Usage
+	Last  time.Time // its newest record
 	// Ended says Claude recorded that it finished after its last step: a notice that it
 	// stopped, or for one Claude waited on, the result of the call that started it. It
 	// can't say whether one is still running after its session stopped or restarted.

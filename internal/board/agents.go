@@ -10,12 +10,13 @@ import (
 
 // agentRunning reports whether a subagent counts as running: Claude hasn't recorded
 // that it finished, its session is running, and it did something since the session's
-// process last started, as a subagent's work doesn't survive a restart.
+// process last started, as a subagent's work doesn't survive a restart. One with no
+// timestamped record yet has only just started.
 func agentRunning(owner Row, a transcript.Agent) bool {
 	if a.Ended || !owner.Running() {
 		return false
 	}
-	if s := owner.Live.StartedAt; s > 0 && a.Last.Before(time.UnixMilli(s)) {
+	if s := owner.Live.StartedAt; s > 0 && !a.Last.IsZero() && a.Last.Before(time.UnixMilli(s)) {
 		return false
 	}
 	return true
@@ -85,13 +86,13 @@ func walkTree(agents []transcript.Agent, indent string, ends bool, emit func(a t
 	walk(top, indent, ends)
 }
 
-// agentLabel is what a subagent row shows: Claude's few words for the task.
+// agentLabel is what a subagent row shows: Claude's few words for the task, cleaned
+// like a session's label so it stays on one line.
 func agentLabel(a transcript.Agent) string {
-	switch {
-	case a.Description != "":
-		return a.Description
-	case a.Type != "":
-		return a.Type
+	for _, s := range []string{a.Description, a.Type} {
+		if l := firstLine(clean(s)); l != "" {
+			return l
+		}
 	}
 	return a.ID
 }

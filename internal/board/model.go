@@ -147,11 +147,11 @@ func (m Model) selected() (Row, bool) {
 }
 
 // rebuild recomputes the rows, keeping the cursor on the same row when it still
-// exists and otherwise at the same position.
+// exists (see cursorKeys) and otherwise at the same position.
 func (m *Model) rebuild() {
-	key := ""
+	var keys []string
 	if r, ok := m.selected(); ok {
-		key = r.Key()
+		keys = cursorKeys(r)
 	}
 	for id, n := range m.seen {
 		if cur, ok := m.state.Seen[id]; !ok || cur < n {
@@ -159,22 +159,45 @@ func (m *Model) rebuild() {
 		}
 	}
 	m.rows, m.counts = BuildRows(m.state, m.live, m.snaps, m.collapsed, m.openAgents, m.showArchived)
-	found := false
-	for i, r := range m.rows {
-		if m.selectName != "" && r.Kind == RowSession && r.Session.Name == m.selectName {
-			m.cursor, found, m.selectName = i, true, ""
-			break
-		}
-		if r.Key() == key {
-			m.cursor, found = i, true
-		}
-	}
-	if !found {
-		m.cursor = clamp(m.cursor, 0, len(m.rows)-1)
-	}
+	m.cursor = m.findCursor(keys)
 	m.skipHeader(1)
 	m.ensureVisible()
 	m.noteCursor()
+}
+
+// cursorKeys are the rows the cursor goes to after a rebuild, best first: the selected
+// row itself, then for a subagent row, its session's finished line and its session.
+// Subagent rows move and fold away as subagents finish or their session stops, so
+// keeping the position there would put the cursor on an unrelated row, such as
+// another session that enter would open and x would stop.
+func cursorKeys(r Row) []string {
+	keys := []string{r.Key()}
+	if r.Kind == RowAgent || r.Kind == RowAgentsFolded {
+		keys = append(keys, "f:"+r.Owner.Key(), r.Owner.Key())
+	}
+	return keys
+}
+
+// findCursor is the new rows' index for the cursor: the session waiting to be selected
+// (selectName) once it appears, else the first of keys that is still there, else the
+// same position.
+func (m *Model) findCursor(keys []string) int {
+	if m.selectName != "" {
+		for i, r := range m.rows {
+			if r.Kind == RowSession && r.Session.Name == m.selectName {
+				m.selectName = ""
+				return i
+			}
+		}
+	}
+	for _, k := range keys {
+		for i, r := range m.rows {
+			if r.Key() == k {
+				return i
+			}
+		}
+	}
+	return clamp(m.cursor, 0, len(m.rows)-1)
 }
 
 // skipHeader moves the cursor off the "Other sessions" heading, in direction dir if
