@@ -58,8 +58,10 @@ func (msg trustDoneMsg) apply(m Model) (Model, tea.Cmd) {
 // startNew opens the workflow picker, starting on the selected row's workflow.
 func (m Model) startNew() (tea.Model, tea.Cmd) {
 	sel := ""
-	if r, ok := m.selected(); ok && (r.Kind == RowWorkflow || r.Kind == RowSession) {
-		sel = r.Workflow.Slug
+	if r, ok := m.selected(); ok {
+		if r = r.session(); r.Kind == RowWorkflow || r.Kind == RowSession {
+			sel = r.Workflow.Slug
+		}
 	}
 	m.pickWorkflow(sel)
 	return m, nil

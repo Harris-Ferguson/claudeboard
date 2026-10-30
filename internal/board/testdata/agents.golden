@@ -1,0 +1,20 @@
+┌ claudeboard · 1 working · 1 needs you · 65k tokens ────────────────────────────────────────────────────────┐
+│  payments-v2  !                         53k│ find payment code · subagent of cb-payments-v2-1 · 8.0k tokens│
+│    ● api  wire the new AfterPay button… 41k│ Explore · in 0 · out 8.0k · cache r 0 · w 0                   │
+│  ▸ ├ ● find payment code               8.0k│ ● working: Grep AfterPay · enter opens cb-payments-v2-1       │
+│    │ └ ● look at the tests             2.0k│                                                               │
+│    ├ ● review the diff                 3.0k│ task: Find where payments are handled                         │
+│    └ ✓ 2 finished  [+]                 6.0k│   › Grep  AfterPay                                            │
+│    ! web  hook PaymentForm into checko… 12k│                                                               │
+│  q4-search                              12k│                                                               │
+│    ✓ api  plan the search rewrite       12k│                                                               │
+│  quick                                     │                                                               │
+│    ○ scratch  new session                  │                                                               │
+│  Other sessions                            │                                                               │
+│    ● arbybot-8d  new session               │                                                               │
+│                                            │                                                               │
+│                                            │                                                               │
+│                                            │                                                               │
+├────────────────────────────────────────────┴───────────────────────────────────────────────────────────────┤
+│ ↑↓ move  enter open (ctrl+z back)  tab next waiting  n new  s quick  ? help  q quit                        │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

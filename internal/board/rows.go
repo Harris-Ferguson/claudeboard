@@ -11,10 +11,12 @@ import (
 type RowKind int
 
 const (
-	RowWorkflow    RowKind = iota // a workflow heading
-	RowSession                    // a claudeboard session
-	RowOtherHeader                // the "Other sessions" heading; never selected
-	RowOther                      // a session claudeboard didn't start
+	RowWorkflow     RowKind = iota // a workflow heading
+	RowSession                     // a claudeboard session
+	RowOtherHeader                 // the "Other sessions" heading; never selected
+	RowOther                       // a session claudeboard didn't start
+	RowAgent                       // a subagent, under its session
+	RowAgentsFolded                // the line for a session's finished subagents
 )
 
 // Row is one line of the left pane plus everything the preview needs about it.
@@ -28,8 +30,13 @@ type Row struct {
 	Tokens    int64  // fresh tokens (cache reads left out): the session's, or the workflow's
 	Stats     Counts // RowWorkflow: its sessions
 	Sessions  int    // RowWorkflow: how many sessions it has
-	Collapsed bool   // RowWorkflow
+	Collapsed bool   // RowWorkflow; RowAgentsFolded: the finished subagents are hidden
 	Unread    bool   // a background session that finished a turn since the user last saw it
+
+	Owner    *Row             // RowAgent, RowAgentsFolded: the session the subagents belong to
+	Agent    transcript.Agent // RowAgent
+	Tree     string           // RowAgent, RowAgentsFolded: the tree lines drawn before it
+	Finished int              // RowAgentsFolded: how many subagents finished
 }
 
 // Counts summarises sessions for the header and workflow rows.
@@ -52,8 +59,20 @@ func (r Row) Key() string {
 		return "s:" + r.Session.Name
 	case RowOtherHeader:
 		return "other"
+	case RowAgent:
+		return "a:" + r.Owner.Key() + "/" + r.Agent.ID
+	case RowAgentsFolded:
+		return "f:" + r.Owner.Key()
 	}
 	return "o:" + r.Live.SessionID
+}
+
+// session is the row's session: the row itself, or for a subagent row, its session's.
+func (r Row) session() Row {
+	if r.Owner != nil {
+		return *r.Owner
+	}
+	return r
 }
 
 // ShortID is the ID `claude attach`, `stop` and `rm` take.
@@ -71,6 +90,10 @@ func (r Row) Name() string {
 		return r.Session.Name
 	case r.Kind == RowWorkflow:
 		return r.Workflow.Name
+	case r.Kind == RowAgent:
+		return agentLabel(r.Agent)
+	case r.Kind == RowAgentsFolded:
+		return r.Owner.Name() + "'s finished subagents"
 	case r.Live == nil:
 		return ""
 	case r.Live.Name != "":
@@ -121,9 +144,10 @@ func (r Row) Running() bool {
 
 // BuildRows lays out the left pane: each workflow (in creation order) followed by its
 // sessions unless collapsed, then sessions Claude lists that claudeboard didn't start.
-// Archived workflows are left out unless showArchived. Counts covers the visible
-// claudeboard sessions only.
-func BuildRows(st store.State, live []claudecli.Session, snaps map[string]transcript.Snapshot, collapsed map[string]bool, showArchived bool) ([]Row, Counts) {
+// Each session is followed by its subagents; openAgents (by the session row's Key)
+// says whose finished ones are shown. Archived workflows are left out unless
+// showArchived. Counts covers the visible claudeboard sessions only.
+func BuildRows(st store.State, live []claudecli.Session, snaps map[string]transcript.Snapshot, collapsed, openAgents map[string]bool, showArchived bool) ([]Row, Counts) {
 	byID := map[string]*claudecli.Session{}
 	byShort := map[string]*claudecli.Session{}
 	for i := range live {
@@ -172,6 +196,7 @@ func BuildRows(st store.State, live []claudecli.Session, snaps map[string]transc
 				head.Stats.NeedsYou++
 			}
 			children = append(children, r)
+			children = append(children, agentRows(r, openAgents[r.Key()])...)
 		}
 		if wf.Archived && !showArchived {
 			continue
@@ -195,6 +220,7 @@ func BuildRows(st store.State, live []claudecli.Session, snaps map[string]transc
 		r := Row{Kind: RowOther, Live: l, Snap: snap, Status: status.From(l, snap.Prompts > 0), Tokens: snap.Usage.Fresh()}
 		r.Unread = unread(st, l.SessionID, l, snap, r.Status)
 		others = append(others, r)
+		others = append(others, agentRows(r, openAgents[r.Key()])...)
 	}
 	if len(others) > 0 {
 		rows = append(rows, Row{Kind: RowOtherHeader})

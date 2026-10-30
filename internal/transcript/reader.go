@@ -2,12 +2,15 @@ package transcript
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 )
 
 // ProjectsDir is where Claude Code keeps conversations: $CLAUDE_CONFIG_DIR/projects,
@@ -27,7 +30,26 @@ type Reader struct {
 	sessionID   string
 	mainPath    string
 	files       map[string]*tail
-	acc         *accumulator
+	acc         *accumulator          // the session's own conversation
+	agents      map[string]*agentFile // its subagents', by file path
+}
+
+// agentFile is a subagent's conversation plus what Claude Code records about it in
+// agent-<id>.meta.json.
+type agentFile struct {
+	acc     *accumulator
+	meta    agentMeta
+	metaMod time.Time // the meta file's modification time when last read
+}
+
+type agentMeta struct {
+	AgentType    string `json:"agentType"`
+	Description  string `json:"description"`
+	ToolUseID    string `json:"toolUseId"`    // the call that started it
+	RequestShape string `json:"requestShape"` // "background" or "foreground"
+	// Finished is set once it ends, but not by every Claude Code version, so it only
+	// counts when there is no other sign.
+	Finished bool `json:"finished"`
 }
 
 // tail is how far a file has been read, plus an incomplete last line.
@@ -38,7 +60,13 @@ type tail struct {
 
 // NewReader returns a Reader for sessionID. Nothing is read until Update.
 func NewReader(projectsDir, sessionID string) *Reader {
-	return &Reader{projectsDir: projectsDir, sessionID: sessionID, files: map[string]*tail{}, acc: newAccumulator()}
+	r := &Reader{projectsDir: projectsDir, sessionID: sessionID}
+	r.reset()
+	return r
+}
+
+func (r *Reader) reset() {
+	r.files, r.acc, r.agents = map[string]*tail{}, newAccumulator(false), map[string]*agentFile{}
 }
 
 // Update reads new lines from the main file and any subagent files and returns the
@@ -61,26 +89,105 @@ func (r *Reader) Update() (Snapshot, error) {
 			break
 		}
 		// A file got shorter (rewritten or truncated): start over from scratch.
-		r.files, r.acc = map[string]*tail{}, newAccumulator()
+		r.reset()
 	}
 	s := r.acc.snapshot()
-	s.Subagents = len(subs)
+	s.Agents = r.agentList()
+	for _, a := range s.Agents {
+		s.Usage = s.Usage.plus(a.Usage)
+	}
 	return s, nil
 }
 
 func (r *Reader) readAll(subs []string) (shrunk bool, err error) {
-	for _, p := range append([]string{r.mainPath}, subs...) {
-		shrunk, err := r.read(p, p == r.mainPath)
-		if err != nil || shrunk {
+	if shrunk, err := r.read(r.mainPath, r.acc); err != nil || shrunk {
+		return shrunk, err
+	}
+	for _, p := range subs {
+		f := r.agents[p]
+		if f == nil {
+			f = &agentFile{acc: newAccumulator(true)}
+			r.agents[p] = f
+		}
+		f.readMeta(strings.TrimSuffix(p, ".jsonl") + ".meta.json")
+		if shrunk, err := r.read(p, f.acc); err != nil || shrunk {
 			return shrunk, err
 		}
 	}
 	return false, nil
 }
 
-// read feeds the complete lines appended to path since the last call to the
-// accumulator. It reports whether the file is now shorter than what was already read.
-func (r *Reader) read(path string, main bool) (shrunk bool, err error) {
+// readMeta reads the subagent's meta file if it changed since the last read. A missing
+// or unreadable one leaves what was read before.
+func (f *agentFile) readMeta(path string) {
+	info, err := os.Stat(path)
+	if err != nil || info.ModTime().Equal(f.metaMod) {
+		return
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	var m agentMeta
+	if json.Unmarshal(data, &m) == nil {
+		f.meta, f.metaMod = m, info.ModTime()
+	}
+}
+
+// agentList builds the session's subagents, oldest first. A subagent's parent is the
+// subagent whose file holds the call that started it.
+func (r *Reader) agentList() []Agent {
+	caller := map[string]string{} // call ID → the ID of the subagent that made it
+	ids := map[*agentFile]string{}
+	for p, f := range r.agents {
+		id := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(p), "agent-"), ".jsonl")
+		ids[f] = id
+		for call := range f.acc.agentCalls {
+			caller[call] = id
+		}
+	}
+	accs := []*accumulator{r.acc}
+	for f := range ids {
+		accs = append(accs, f.acc)
+	}
+	type started struct {
+		a     Agent
+		first time.Time
+	}
+	list := make([]started, 0, len(ids))
+	for f, id := range ids {
+		snap := f.acc.snapshot()
+		a := Agent{ID: id, Parent: caller[f.meta.ToolUseID], Type: f.meta.AgentType, Description: f.meta.Description,
+			Items: snap.Items, Pending: snap.Pending, Usage: snap.Usage, Last: f.acc.last}
+		var end time.Time
+		for _, acc := range accs {
+			if t := acc.notified[id]; t.After(end) {
+				end = t
+			}
+			if t := acc.results[f.meta.ToolUseID]; f.meta.RequestShape != "background" && t.After(end) {
+				// A background subagent's call gets its result as soon as it starts.
+				end = t
+			}
+		}
+		a.Ended = (!end.IsZero() && !end.Before(a.Last)) || (end.IsZero() && f.meta.Finished)
+		list = append(list, started{a, f.acc.first})
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if !list[i].first.Equal(list[j].first) {
+			return list[i].first.Before(list[j].first)
+		}
+		return list[i].a.ID < list[j].a.ID
+	})
+	out := make([]Agent, len(list))
+	for i, s := range list {
+		out[i] = s.a
+	}
+	return out
+}
+
+// read feeds the complete lines appended to path since the last call to acc. It
+// reports whether the file is now shorter than what was already read.
+func (r *Reader) read(path string, acc *accumulator) (shrunk bool, err error) {
 	t := r.files[path]
 	if t == nil {
 		t = &tail{}
@@ -119,7 +226,7 @@ func (r *Reader) read(path string, main bool) (shrunk bool, err error) {
 			break
 		}
 		if line := bytes.TrimSpace(buf[:i]); len(line) > 0 {
-			r.acc.add(line, main)
+			acc.add(line)
 		}
 		buf = buf[i+1:]
 	}

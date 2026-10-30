@@ -71,9 +71,18 @@ func (m Model) enter() (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
+	if r.Kind == RowAgent {
+		// Claude can't open a subagent on its own; open the session that runs it.
+		r = r.session()
+	}
 	switch {
 	case r.Kind == RowWorkflow:
 		m.collapsed[r.Workflow.Slug] = !m.collapsed[r.Workflow.Slug]
+		m.rebuild()
+		return m, nil
+	case r.Kind == RowAgentsFolded:
+		key := r.Owner.Key()
+		m.openAgents[key] = !m.openAgents[key]
 		m.rebuild()
 		return m, nil
 	case r.Interactive():

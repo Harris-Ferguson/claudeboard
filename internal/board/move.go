@@ -25,9 +25,11 @@ func (msg movedMsg) apply(m Model) (Model, tea.Cmd) {
 	return m, cmd
 }
 
-// startMove opens the workflow picker for the selected Other session.
+// startMove opens the workflow picker for the selected Other session (or the one a
+// selected subagent belongs to).
 func (m Model) startMove() (tea.Model, tea.Cmd) {
 	r, ok := m.selected()
+	r = r.session()
 	switch {
 	case !ok || r.Kind != RowOther:
 		m.message = "m moves a session from Other sessions into a workflow"

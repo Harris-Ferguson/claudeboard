@@ -39,10 +39,12 @@ func (m Model) newWorkflowName() string {
 	return name
 }
 
-// selectedDir is the folder of the selected row: a session's repo, a workflow's last
-// folder, or an Other session's folder. Otherwise it's the folder claudeboard started in.
+// selectedDir is the folder of the selected row: a session's repo (a subagent's
+// session's), a workflow's last folder, or an Other session's folder. Otherwise it's
+// the folder claudeboard started in.
 func (m Model) selectedDir() string {
 	r, ok := m.selected()
+	r = r.session()
 	switch {
 	case !ok:
 	case r.Kind == RowSession && r.Session.Dir != "":

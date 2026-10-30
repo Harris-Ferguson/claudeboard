@@ -94,6 +94,8 @@ type Model struct {
 	cursor    int
 	listTop   int // first row shown in the left pane
 	collapsed map[string]bool
+	// openAgents is the sessions (by row Key) whose finished subagents are shown.
+	openAgents map[string]bool
 
 	showArchived   bool
 	previewToggled bool // p flips the default: shown when wide, hidden when narrow
@@ -128,11 +130,12 @@ func New(d Deps, warning string) Model {
 		d.Now = time.Now
 	}
 	return Model{
-		deps:      d,
-		snaps:     map[string]transcript.Snapshot{},
-		readers:   map[string]*transcript.Reader{},
-		collapsed: map[string]bool{},
-		message:   warning,
+		deps:       d,
+		snaps:      map[string]transcript.Snapshot{},
+		readers:    map[string]*transcript.Reader{},
+		collapsed:  map[string]bool{},
+		openAgents: map[string]bool{},
+		message:    warning,
 	}
 }
 
@@ -155,7 +158,7 @@ func (m *Model) rebuild() {
 			m.state.MarkSeen(id, n)
 		}
 	}
-	m.rows, m.counts = BuildRows(m.state, m.live, m.snaps, m.collapsed, m.showArchived)
+	m.rows, m.counts = BuildRows(m.state, m.live, m.snaps, m.collapsed, m.openAgents, m.showArchived)
 	found := false
 	for i, r := range m.rows {
 		if m.selectName != "" && r.Kind == RowSession && r.Session.Name == m.selectName {

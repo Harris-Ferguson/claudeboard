@@ -103,7 +103,7 @@ func TestReaderCountsSubagents(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := mustUpdate(t, NewReader(projects, "s1"))
-	if s.Subagents != 1 || s.Usage.Output != 110 || len(s.Items) != 2 {
+	if len(s.Agents) != 1 || s.Usage.Output != 110 || len(s.Items) != 2 {
 		t.Errorf("snapshot = %+v (want 1 subagent, 110 output tokens, 2 items from the main file)", s)
 	}
 }
