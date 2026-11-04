@@ -220,6 +220,7 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
 | ↑↓ / j k | move |
 | Enter | open the selected session (see below); on a subagent, open its session; on a workflow row or a session's finished-subagents line, collapse/expand it |
 | Tab | jump to the next session that needs the user, in list order |
+| u | jump to the next unread session, in list order; a folded workflow with an unread session is unfolded to reach it |
 | n | new session |
 | N | new session at once, in a new workflow with a random name |
 | s | quick one-off |

@@ -254,7 +254,7 @@ func helpLines() []string {
 	keys := [][2]string{
 		{"↑↓ / j k", "move"},
 		{"enter", "open session (ctrl+z back) / fold"},
-		{"tab", "next session that needs you"},
+		{"tab / u", "next session that needs you / unread"},
 		{"n / N", "new session / at once, random name"},
 		{"s", "quick one-off in the scratch folder"},
 		{"x / r", "stop / resume (keeps the conversation)"},
