@@ -138,7 +138,7 @@ func (m Model) footer(width int) string {
 // preview (and so takes over the whole body on a narrow screen).
 func (m Model) panelMode() bool {
 	switch m.mode {
-	case modeHelp, modePickWorkflow, modeNameWorkflow, modePickRepo:
+	case modeHelp, modePickWorkflow, modeNameWorkflow, modePickRepo, modeRename:
 		return true
 	}
 	return false
@@ -190,10 +190,11 @@ func (m Model) rowLine(r Row, selected bool, width int) string {
 
 // labelPart is a session row's label, after a "•" and in bold when it's unread.
 func labelPart(r Row) string {
+	l := shortLabel(r.label())
 	if r.Unread {
-		return " " + styleUnread.Render("•") + " " + styleBold.Render(sessionLabel(r.Snap))
+		return " " + styleUnread.Render("•") + " " + styleBold.Render(l)
 	}
-	return "  " + sessionLabel(r.Snap)
+	return "  " + l
 }
 
 func statusIcon(s status.Status) string {
@@ -223,6 +224,9 @@ func (m Model) panelLines(width, height int) []string {
 	case modeNameWorkflow:
 		return []string{" " + styleBold.Render("New workflow name"), "", " " + m.flow.input.View(), "",
 			styleFaint.Render(" enter continue · esc cancel")}
+	case modeRename:
+		return []string{" " + styleBold.Render("Rename "+m.pending.Session.Name), "", " " + m.flow.input.View(), "",
+			styleFaint.Render(" enter save · empty goes back to the first prompt · esc cancel")}
 	}
 	r, ok := m.selected()
 	if !ok {
@@ -255,7 +259,7 @@ func helpLines() []string {
 		{"s", "quick one-off in the scratch folder"},
 		{"x / r", "stop / resume (keeps the conversation)"},
 		{"D", "delete session and its worktree"},
-		{"m", "move an Other session into a workflow"},
+		{"m / R", "move to a workflow / rename session"},
 		{"a / A", "archive workflow / show archived"},
 		{"p", "preview on/off · pgup pgdn scroll"},
 		{"ctrl+l", "redraw the screen"},
@@ -283,6 +287,9 @@ func (m Model) previewLines(r Row, width, height int) []string {
 	switch {
 	case r.Kind == RowSession:
 		where := repoLabel(r.Session.Repo)
+		if r.Name() != r.Session.Name {
+			where = r.Session.Name + " · " + where
+		}
 		if r.Session.Worktree != "" {
 			where += " (worktree " + r.Session.Worktree + ")"
 		}

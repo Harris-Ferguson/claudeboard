@@ -62,7 +62,8 @@ Run `claudeboard`.
 | x | stop the session (keeps its conversation and worktree) |
 | r | resume a stopped session in the background |
 | D | delete the session and its worktree (asks first) |
-| m | move a session from "Other sessions" into a workflow. One open in another terminal is continued in a background copy (`claude --bg --resume`), which opens straight away; close the original afterwards. A background session is added as it is |
+| m | move the session into another workflow, or a new one. One of claudeboard's own sessions just changes workflow: it keeps running, with its worktree and its Claude name (`cb-…`). From "Other sessions", one open in another terminal is continued in a background copy (`claude --bg --resume`), which opens straight away; close the original afterwards. A background one is added as it is |
+| R | rename the session: what you type shows on its row in place of the first prompt. Claude Code can't rename a session, so this is claudeboard's own name for it; an empty name goes back to the first prompt. Move an "Other" session into a workflow first |
 | a / A | archive a workflow / show archived workflows |
 | p | show or hide the preview (hidden by default below 90 columns) |
 | PgUp / PgDn | scroll the preview |

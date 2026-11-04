@@ -1,6 +1,7 @@
 package store
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -166,5 +167,96 @@ func TestSeenIsKeptAndForgottenWithItsSession(t *testing.T) {
 	s.RemoveSession("a", "")
 	if _, ok := s.Seen["a"]; ok {
 		t.Error("a deleted session's read state should go with it")
+	}
+}
+
+func movable() State {
+	return State{
+		Workflows: []Workflow{{Slug: "payments-v2", Name: "payments-v2"}, {Slug: "q4-search", Name: "Q4 search"}},
+		Sessions: []Session{
+			{SessionID: "id-1", ShortID: "a1", Name: "cb-payments-v2-1", Workflow: "payments-v2", Repo: "api", Dir: "/w/api", Worktree: "payments-v2-1"},
+			{Name: "cb-payments-v2-2", Workflow: "payments-v2", Repo: "web", Dir: "/w/web"}, // ID not known yet
+		},
+	}
+}
+
+func TestMoveSessionChangesOnlyItsWorkflow(t *testing.T) {
+	st := movable()
+	before := st.Sessions[0]
+	wf, err := st.MoveSession(Session{SessionID: "id-1", Name: "cb-payments-v2-1"}, "Q4 search", now)
+	if err != nil || wf.Slug != "q4-search" {
+		t.Fatalf("MoveSession = %+v, %v", wf, err)
+	}
+	after := st.Sessions[0]
+	before.Workflow = "q4-search"
+	if after != before {
+		t.Errorf("recorded %+v, want %+v (name, worktree and the rest kept)", after, before)
+	}
+}
+
+func TestMoveSessionIntoANewWorkflow(t *testing.T) {
+	st := movable()
+	wf, err := st.MoveSession(Session{SessionID: "id-1"}, "Hotfixes", now)
+	if err != nil || wf.Slug != "hotfixes" || wf.Name != "Hotfixes" || len(st.Workflows) != 3 {
+		t.Fatalf("MoveSession = %+v, %v; workflows %+v", wf, err, st.Workflows)
+	}
+	if st.Sessions[0].Workflow != "hotfixes" {
+		t.Errorf("session in %q", st.Sessions[0].Workflow)
+	}
+}
+
+func TestMoveSessionKnownOnlyByName(t *testing.T) {
+	st := movable()
+	if _, err := st.MoveSession(Session{Name: "cb-payments-v2-2"}, "q4-search", now); err != nil {
+		t.Fatal(err)
+	}
+	if st.Sessions[1].Workflow != "q4-search" || st.Sessions[0].Workflow != "payments-v2" {
+		t.Errorf("sessions %+v", st.Sessions)
+	}
+}
+
+func TestMoveSessionRefusals(t *testing.T) {
+	st := movable()
+	if _, err := st.MoveSession(Session{SessionID: "id-1"}, "Payments V2", now); err == nil || !strings.Contains(err.Error(), "already in") {
+		t.Errorf("into its own workflow: %v", err)
+	}
+	if _, err := st.MoveSession(Session{SessionID: "gone", Name: "cb-payments-v2-1"}, "q4-search", now); err == nil {
+		t.Error("a session the state doesn't have should be refused, not matched by name")
+	}
+	if _, err := st.MoveSession(Session{SessionID: "id-1"}, "!!!", now); err == nil {
+		t.Error("a workflow name with no letters or digits should be refused")
+	}
+	if st.Sessions[0].Workflow != "payments-v2" || len(st.Workflows) != 2 {
+		t.Errorf("a refused move changed the state: %+v", st)
+	}
+}
+
+func TestRelinkKeepsAMovedSessionWhereItIs(t *testing.T) {
+	st := movable()
+	if _, err := st.MoveSession(Session{SessionID: "id-1"}, "q4-search", now); err != nil {
+		t.Fatal(err)
+	}
+	st.Relink([]Listed{{SessionID: "id-1", ShortID: "a2", Name: "cb-payments-v2-1", Cwd: "/w/api"}}, now)
+	if s := st.Session("id-1"); s.Workflow != "q4-search" || s.ShortID != "a2" {
+		t.Errorf("after relink %+v", s)
+	}
+}
+
+func TestSetLabel(t *testing.T) {
+	st := movable()
+	if err := st.SetLabel(Session{SessionID: "id-1"}, "  checkout button  "); err != nil {
+		t.Fatal(err)
+	}
+	if got := st.Sessions[0].Label; got != "checkout button" {
+		t.Errorf("Label = %q", got)
+	}
+	if err := st.SetLabel(Session{Name: "cb-payments-v2-2"}, "web bits"); err != nil || st.Sessions[1].Label != "web bits" {
+		t.Errorf("by name: %v, %q", err, st.Sessions[1].Label)
+	}
+	if err := st.SetLabel(Session{SessionID: "id-1"}, " "); err != nil || st.Sessions[0].Label != "" {
+		t.Errorf("clearing: %v, %q", err, st.Sessions[0].Label)
+	}
+	if err := st.SetLabel(Session{SessionID: "gone"}, "x"); err == nil {
+		t.Error("a session the state doesn't have should be refused")
 	}
 }

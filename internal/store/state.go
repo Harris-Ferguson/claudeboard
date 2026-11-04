@@ -30,6 +30,9 @@ type Session struct {
 	Worktree  string    `json:"worktree"`
 	Cwd       string    `json:"cwd,omitempty"` // the folder Claude last reported the session in
 	CreatedAt time.Time `json:"created_at"`
+	// Label is what the board shows for the session in place of its first prompt, or
+	// "". Claude can't rename a session, so this is claudeboard's own name for it.
+	Label string `json:"label,omitempty"`
 }
 
 // WorkDir is the folder the session runs in: where Claude last reported it, else its
@@ -135,6 +138,45 @@ func (st *State) sessionByName(name string) *Session {
 			return &st.Sessions[i]
 		}
 	}
+	return nil
+}
+
+// find returns the recorded session s stands for: the one with its ID, or for one
+// whose ID isn't known yet, the one with its name.
+func (st *State) find(s Session) *Session {
+	if s.SessionID != "" {
+		return st.Session(s.SessionID)
+	}
+	return st.sessionByName(s.Name)
+}
+
+// MoveSession puts the recorded session s into the workflow called name, creating the
+// workflow if needed. Only the record changes: the session keeps running, and keeps
+// its name and worktree.
+func (st *State) MoveSession(s Session, name string, now time.Time) (*Workflow, error) {
+	rec := st.find(s)
+	if rec == nil {
+		return nil, fmt.Errorf("%s isn't recorded any more", s.Name)
+	}
+	if cur := st.Workflow(rec.Workflow); cur != nil && cur.Slug == Slug(name) {
+		return nil, fmt.Errorf("%s is already in %s", rec.Name, cur.Name)
+	}
+	wf, err := st.EnsureWorkflow(name, now)
+	if err != nil {
+		return nil, err
+	}
+	rec.Workflow = wf.Slug
+	return wf, nil
+}
+
+// SetLabel sets the label the board shows for the recorded session s. A blank label
+// clears it, so the board goes back to showing the first prompt.
+func (st *State) SetLabel(s Session, label string) error {
+	rec := st.find(s)
+	if rec == nil {
+		return fmt.Errorf("%s isn't recorded any more", s.Name)
+	}
+	rec.Label = strings.TrimSpace(label)
 	return nil
 }
 

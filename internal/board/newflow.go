@@ -63,16 +63,17 @@ func (m Model) startNew() (tea.Model, tea.Cmd) {
 			sel = r.Workflow.Slug
 		}
 	}
-	m.pickWorkflow(sel)
+	m.pickWorkflow(sel, "")
 	return m, nil
 }
 
-// pickWorkflow opens the workflow picker on the workflow with slug sel, or the first.
-func (m *Model) pickWorkflow(sel string) {
+// pickWorkflow opens the workflow picker on the workflow with slug sel, or the first,
+// leaving out the one with slug skip.
+func (m *Model) pickWorkflow(sel, skip string) {
 	var choices []choice
 	cursor := 0
 	for _, wf := range m.state.Workflows {
-		if wf.Archived {
+		if wf.Archived || wf.Slug == skip {
 			continue
 		}
 		if wf.Slug == sel {
@@ -139,7 +140,7 @@ func (m Model) nameKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 // workflowChosen goes on once the workflow is known: to the folder picker for a new
-// session, or straight to moving the Other session.
+// session, or straight to moving the session.
 func (m Model) workflowChosen(workflow string) (tea.Model, tea.Cmd) {
 	if m.flow.move != nil {
 		return m.moveInto(workflow)

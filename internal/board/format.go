@@ -95,13 +95,16 @@ func repoLabel(repo string) string {
 	return repo
 }
 
-// sessionLabel is the start of the first prompt, or "new session".
-func sessionLabel(s transcript.Snapshot) string {
-	if l := firstLine(clean(s.FirstPrompt)); l != "" {
+// shortLabel is a row label: l cut to maxLabel, or "new session" when it's empty.
+func shortLabel(l string) string {
+	if l != "" {
 		return truncate(l, maxLabel)
 	}
 	return "new session"
 }
+
+// promptLabel is the first line of the session's first prompt, in full.
+func promptLabel(s transcript.Snapshot) string { return firstLine(clean(s.FirstPrompt)) }
 
 // tildePath shortens a path under the home folder to start with "~".
 func tildePath(p string) string {

@@ -168,7 +168,7 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
 }
 ```
 
-`repo` is the config name when the folder matches a configured repo, otherwise the absolute path. `dir` is the repo folder; the worktree path is derived from `dir` and `worktree`.
+`repo` is the config name when the folder matches a configured repo, otherwise the absolute path. A session the user renamed also has `label`. `dir` is the repo folder; the worktree path is derived from `dir` and `worktree`.
 
 **Naming.**
 - **Workflow slug:** the name lowercased, with every run of characters outside `[a-z0-9]` replaced by `-` and the result trimmed to 24 characters. The built-in quick workflow is `quick`.
@@ -200,7 +200,7 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
 - **Header:** counts by state and the token total, both for claudeboard's own sessions. "Other sessions" are not included. When the last successful status check is more than 5 s old, the header shows `status stale (12s)`.
 - **Left pane:** workflows in creation order, each followed by its sessions, then "Other sessions".
   - **Workflow rows** show the name, a `!` when any of its sessions needs the user, a `•` when any is unread, and the workflow's token total.
-  - **Session rows** show the status icon, repo, label and tokens. The label is the first ~40 characters of the first prompt, or `new session`.
+  - **Session rows** show the status icon, repo, label and tokens. The label is the first line of the label the user gave the session with `R`, or else of its first prompt, cut to ~40 characters, or `new session`.
   - **Unread:** a background session is unread when Claude has finished a turn (✓ done or ! needs you) since the user last saw it: its label gets a `•` and is bold, and its workflow row gets a `•`, folded or not. Interactive sessions are never marked.
     - **Seen** is how many of Claude's transcript records the main conversation had when the user last looked (`transcript.Snapshot.Activity`; Claude Code writes one record per content block, and the count starts over if the file is rewritten), kept per session ID in `state.json` (`seen`).
     - **Looking** means coming back from the session with Ctrl+Z, or the cursor resting on it for at least 1 s while the preview is showing. That is checked when a refresh lands, so moving the cursor past a session doesn't count; the wait starts again whenever the selected row changes.
@@ -208,7 +208,7 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
     - **First sight:** any other session the state has no record of (one claudeboard didn't start, or one recorded before read state existed) is recorded as seen when the board first sees it, whether or not its workflow is folded or archived, so existing sessions don't all start out unread.
   - **Subagent rows** follow their session: the running ones as a tree (`├ ● find payment code`, nested under the subagent that started them), with tokens, then one `└ ✓ N finished  [+]` line. The label is the first line of the description, cleaned like a session's. Enter on that line shows the finished ones under it (and hides them again). A subagent counts as running unless it has ended (section 5), its session isn't running (`Row.Running`), or its last record is older than the session's `startedAt`, since a subagent's work doesn't survive a restart. One with no timestamped record yet has just started, so it counts as running. Sessions without subagents have no extra rows. Subagents don't count in the header or workflow totals (their tokens are already in their session's).
   - **Order never changes because of status,** so workflow and session rows don't move under the cursor. Subagent rows do. When the selected subagent's row goes (it finished while the finished line is folded, or its session stopped or restarted), the cursor moves to its session's finished line, or to the session if there is none. It never lands on another session, which Enter would open, `x` would stop and resting on would mark read.
-- **Right pane (preview):** the session name, repo (and worktree), token total and breakdown, and subagent count. If the session needs the user, it then shows what it is waiting on, including the pending tool call. Below that are the most recent preview items, following new output. PgUp/PgDn scroll. Prompts and replies are labelled in colour, with wrapped lines indented under the label; replies get light markdown (bold, inline code, headings, bullets, code blocks). Each tool call is one dimmed line (`› Bash  Run the tests`), a run of identical calls is shown once with a count, and the waiting-on line shows the command itself, since that is what a permission prompt asks about.
+- **Right pane (preview):** the session name (for a renamed session, its label, then its Claude name), repo (and worktree), token total and breakdown, and subagent count. If the session needs the user, it then shows what it is waiting on, including the pending tool call. Below that are the most recent preview items, following new output. PgUp/PgDn scroll. Prompts and replies are labelled in colour, with wrapped lines indented under the label; replies get light markdown (bold, inline code, headings, bullets, code blocks). Each tool call is one dimmed line (`› Bash  Run the tests`), a run of identical calls is shown once with a count, and the waiting-on line shows the command itself, since that is what a permission prompt asks about.
 - **Subagent preview:** the description, `subagent of <session>`, tokens, type and breakdown, `● working: <pending call>` or `✓ finished`, then its own conversation, which starts with the task its session gave it (labelled `task:` rather than `you:`). The finished line's preview lists the finished subagents with their tokens.
 - **Narrow terminals:** below 90 columns the preview is hidden by default; `p` toggles it.
 - **Token format:** `950`, `41k`, `1.24M`.
@@ -226,7 +226,8 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
 | x | stop session (keeps conversation and worktree) |
 | r | resume a stopped session |
 | D | delete session and worktree, after a `y/N` confirmation |
-| m | move an Other session into a workflow (see below) |
+| m | move a session into another workflow (see below) |
+| R | rename one of claudeboard's own sessions (see below) |
 | a | archive / unarchive the selected workflow (hides it; does not stop its sessions) |
 | A | show / hide archived workflows |
 | p | show / hide preview |
@@ -242,9 +243,14 @@ Enter on a session:
 - **Background session that isn't running** (`stopped`, `failed`, `crashed` or `exited`, or a claudeboard session Claude no longer lists), claudeboard's own or under Other sessions: resumes it with `claude --bg --resume <sessionId>` in its folder, with no other options, so Claude continues it under the same ID, then opens the short ID the resume prints. The board never attaches to such a session directly: `claude attach` could start the background service, which would inherit its `DISABLE_TELEMETRY=1` (section 4, Gotchas). Until Claude has listed sessions once, every row looks stopped, so Enter says it is still waiting instead.
 - **Other interactive session:** says it runs in another terminal, and that `m` continues it here.
 
-`m` on an Other session opens the workflow picker (including "+ new workflow…"), then:
-- **Interactive session:** claudeboard starts `claude --bg --resume <sessionId> --name cb-<slug>-<n>` in its folder, records the copy in the workflow and opens it. The original stays open in its terminal until the user closes it; the footer says so. A session with no conversation yet has nothing to continue, so `m` says that instead.
-- **Background session:** recorded in the workflow as it is, keeping its ID and name (or its short ID if it has no name). Nothing is restarted.
+`m` on a session opens the workflow picker (including "+ new workflow…", and leaving out the session's own workflow), then:
+- **claudeboard's own session:** only its record changes (`workflow` in `state.json`). The session keeps running untouched and keeps its Claude name `cb-<old-slug>-<n>` and its worktree: Claude can't rename a session, and re-linking only adopts sessions `state.json` doesn't know, so it doesn't move it back. The workflow it left stays, even if empty; numbering in both workflows is unaffected, since numbers come from names. A new workflow whose name has the slug of the session's own is refused ("already in").
+- **Other interactive session:** claudeboard starts `claude --bg --resume <sessionId> --name cb-<slug>-<n>` in its folder, records the copy in the workflow and opens it. The original stays open in its terminal until the user closes it; the footer says so. A session with no conversation yet has nothing to continue, so `m` says that instead.
+- **Other background session:** recorded in the workflow as it is, keeping its ID and name (or its short ID if it has no name). Nothing is restarted.
+
+After a move the destination workflow is unfolded and the cursor follows the session there.
+
+`R` on a session in a workflow (or on one of its subagents) opens a text box holding the session's label, or else the first line of its first prompt. Enter saves it as the session's `label` in `state.json`: it replaces the first prompt on the row, comes first in the preview title (before the Claude name, which can't change), and is how messages refer to the session. An empty label, or the first prompt left as it is, clears it, so the row follows the first prompt again. Esc cancels. On an Other session, `R` says to move it into a workflow first.
 
 ### New session (`n`)
 
