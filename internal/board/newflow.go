@@ -43,6 +43,7 @@ func (msg launchedMsg) apply(m Model) (Model, tea.Cmd) {
 		m.message = msg.sess.Name + " continues " + msg.from + "'s conversation; " + msg.from + " is still open in its terminal"
 	}
 	m.selectName = msg.sess.Name
+	delete(m.collapsed, msg.sess.Workflow) // so the cursor finds it there on the way back
 	return m, m.attach(msg.sess.ShortID)
 }
 

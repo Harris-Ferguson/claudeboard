@@ -84,13 +84,16 @@ func (st *State) Workflow(slug string) *Workflow {
 	return nil
 }
 
-// EnsureWorkflow returns the workflow for name, creating it if needed.
+// EnsureWorkflow returns the workflow for name, creating it if needed. An archived one
+// is unarchived: choosing a workflow by name to put a session in it makes it active
+// again, so the session doesn't disappear into a hidden workflow.
 func (st *State) EnsureWorkflow(name string, now time.Time) (*Workflow, error) {
 	slug := Slug(name)
 	if slug == "" {
 		return nil, fmt.Errorf("workflow name %q needs at least one letter or digit", name)
 	}
 	if wf := st.Workflow(slug); wf != nil {
+		wf.Archived = false
 		return wf, nil
 	}
 	st.Workflows = append(st.Workflows, Workflow{Slug: slug, Name: strings.TrimSpace(name), CreatedAt: now})

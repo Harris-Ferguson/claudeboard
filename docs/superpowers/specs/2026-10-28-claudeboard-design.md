@@ -175,7 +175,7 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
 - **Session name:** `cb-<workflow-slug>-<n>`, where `n` is one more than the highest `n` used in that workflow.
 - **Worktree name:** `<workflow-slug>-<n>`.
 
-**Re-linking.** On every refresh, any listed session whose name matches `cb-<slug>-<n>` but which `state.json` doesn't know is adopted. It goes into workflow `<slug>` (created if missing), with `dir` set to its reported `cwd`. The slug is the text between `cb-` and the last `-`. A known session whose short ID changed gets the new one. If `state.json` cannot be parsed, it is renamed to `state.json.corrupt-<unix-time>` and the board starts empty; re-linking then restores the sessions that are still listed.
+**Re-linking.** On every refresh, any listed session whose name matches `cb-<slug>-<n>` but which `state.json` doesn't know is adopted. It goes into workflow `<slug>` (created if missing), with `dir` set to its reported `cwd`. The slug is the text between `cb-` and the last `-`. A known session whose short ID changed gets the new one. If `state.json` cannot be parsed, it is renamed to `state.json.corrupt-<unix-time>` and the board starts empty; re-linking then restores the sessions that are still listed. `state.json` is the only record of moves and labels, so sessions restored this way go back to the `cb-<slug>` workflow their name says and lose their labels.
 
 ## 7. The board
 
@@ -249,7 +249,7 @@ Enter on a session:
 - **Other interactive session:** claudeboard starts `claude --bg --resume <sessionId> --name cb-<slug>-<n>` in its folder, records the copy in the workflow and opens it. The original stays open in its terminal until the user closes it; the footer says so. A session with no conversation yet has nothing to continue, so `m` says that instead.
 - **Other background session:** recorded in the workflow as it is, keeping its ID and name (or its short ID if it has no name). Nothing is restarted.
 
-After a move the destination workflow is unfolded and the cursor follows the session there.
+After a move the destination workflow is unfolded and the cursor follows the session there. Naming an archived workflow, under "+ new workflow…" (for `m` or `n`) or with `claudeboard new -w`, unarchives it, so the session doesn't disappear into a hidden workflow.
 
 `R` on a session in a workflow (or on one of its subagents) opens a text box holding the session's label, or else the first line of its first prompt. Enter saves it as the session's `label` in `state.json`: it replaces the first prompt on the row, comes first in the preview title (before the Claude name, which can't change), and is how messages refer to the session. An empty label, or the first prompt left as it is, clears it, so the row follows the first prompt again. Esc cancels. On an Other session, `R` says to move it into a workflow first.
 

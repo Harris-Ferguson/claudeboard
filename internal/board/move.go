@@ -57,14 +57,15 @@ func (m Model) moveInto(workflow string) (tea.Model, tea.Cmd) {
 		d, sess, name := m.deps, r.Session, r.Name()
 		m.message = "moving " + name + "…"
 		return m, func() tea.Msg {
+			into := workflow
 			err := d.Store.Update(func(st *store.State) error {
 				wf, err := st.MoveSession(sess, workflow, d.Now())
 				if err == nil {
-					sess.Workflow = wf.Slug
+					sess.Workflow, into = wf.Slug, wf.Name
 				}
 				return err
 			})
-			return movedMsg{sess: sess, name: name, workflow: workflow, err: err}
+			return movedMsg{sess: sess, name: name, workflow: into, err: err}
 		}
 	}
 	if r.Interactive() {

@@ -110,6 +110,15 @@ func TestRenameEscCancels(t *testing.T) {
 	}
 }
 
+func TestRenameHintFitsANarrowPreview(t *testing.T) {
+	m, _ := testModel(t, 90, 16) // a 51-column preview
+	m.cursor = 2
+	m, _ = press(t, m, "R")
+	if out := ansi.Strip(m.render()); !strings.Contains(out, "esc cancel") {
+		t.Errorf("the hint is cut off:\n%s", out)
+	}
+}
+
 func TestRenameOnlyAppliesToWorkflowSessions(t *testing.T) {
 	m, _ := withOthers(t)
 	for key, want := range map[string]string{

@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Harris-Ferguson/claudeboard/internal/claudecli"
+	"github.com/Harris-Ferguson/claudeboard/internal/store"
 	"github.com/Harris-Ferguson/claudeboard/internal/transcript"
 )
 
@@ -61,6 +62,23 @@ func TestMoveInteractiveSessionContinuesItInAWorkflow(t *testing.T) {
 	}
 	if !strings.Contains(m.message, "cb-payments-v2-3") || !strings.Contains(m.message, "arbybot-8d is still open in its terminal") {
 		t.Errorf("message %q", m.message)
+	}
+}
+
+func TestMoveInteractiveSessionIntoAFoldedWorkflowUnfoldsIt(t *testing.T) {
+	m, _ := withOthers(t)
+	m.collapsed["payments-v2"] = true
+	m.rebuild()
+	m = cursorTo(t, m, "o:id-other")
+	m, cmd := press(t, m, "m", "enter") // payments-v2
+	m, _ = send(m, cmd())
+	if m.collapsed["payments-v2"] {
+		t.Fatal("payments-v2 is still folded, so the cursor can't follow the copy there")
+	}
+	m, refresh := send(m, attachDoneMsg{shortID: "new00001"})
+	m, _ = send(m, refresh())
+	if r, _ := m.selected(); r.Kind != RowSession || r.Session.Name != "cb-payments-v2-3" {
+		t.Errorf("cursor on %+v, want the copy under payments-v2", r)
 	}
 }
 
@@ -149,6 +167,37 @@ func TestMoveSessionIntoANewWorkflow(t *testing.T) {
 	}
 	if s := state.Session("id-1"); s.Workflow != "hotfixes" {
 		t.Errorf("session in %q", s.Workflow)
+	}
+}
+
+func TestMoveByNameIntoAnArchivedWorkflowShowsIt(t *testing.T) {
+	m, _ := testModel(t, 100, 16)
+	archive := func(st *store.State) error { st.Workflows[1].Archived = true; return nil }
+	if err := m.deps.Store.Update(archive); err != nil {
+		t.Fatal(err)
+	}
+	_ = archive(&m.state)
+	m.rebuild()
+	m = cursorTo(t, m, "s:id-2")
+	m, _ = press(t, m, "m", "down", "enter") // + new workflow…
+	m.flow.input.SetValue("q4-search")
+	m, cmd := press(t, m, "enter")
+	m, refresh := send(m, cmd())
+	m, _ = send(m, refresh())
+	if r, _ := m.selected(); r.Kind != RowSession || r.Session.SessionID != "id-2" || r.Workflow.Slug != "q4-search" {
+		t.Errorf("cursor on %+v, want the moved session under q4-search, unarchived", r)
+	}
+}
+
+func TestMoveByAnotherSpellingNamesTheWorkflow(t *testing.T) {
+	m, _ := testModel(t, 100, 16)
+	m = cursorTo(t, m, "s:id-2")
+	m, _ = press(t, m, "m", "down", "down", "enter") // + new workflow…
+	m.flow.input.SetValue("Q4 Search!")
+	m, cmd := press(t, m, "enter")
+	m, _ = send(m, cmd())
+	if m.message != "moved cb-payments-v2-2 into q4-search" {
+		t.Errorf("message %q, want the workflow's own name", m.message)
 	}
 }
 

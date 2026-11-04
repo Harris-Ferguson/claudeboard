@@ -23,6 +23,14 @@ func TestEnsureWorkflow(t *testing.T) {
 	}
 }
 
+func TestEnsureWorkflowUnarchivesIt(t *testing.T) {
+	st := State{Workflows: []Workflow{{Slug: "q4-search", Name: "Q4 search", Archived: true}}}
+	wf, err := st.EnsureWorkflow("q4-search", now)
+	if err != nil || wf.Archived || st.Workflows[0].Archived || len(st.Workflows) != 1 {
+		t.Errorf("EnsureWorkflow = %+v, %v; workflows %+v", wf, err, st.Workflows)
+	}
+}
+
 func TestNextSessionNumber(t *testing.T) {
 	st := State{Sessions: []Session{{Name: "cb-w-1"}, {Name: "cb-w-3"}, {Name: "cb-other-9"}}}
 	if n := st.NextSessionNumber("w"); n != 4 {
@@ -212,6 +220,18 @@ func TestMoveSessionKnownOnlyByName(t *testing.T) {
 	}
 	if st.Sessions[1].Workflow != "q4-search" || st.Sessions[0].Workflow != "payments-v2" {
 		t.Errorf("sessions %+v", st.Sessions)
+	}
+}
+
+func TestMoveSessionIntoAnArchivedWorkflowUnarchivesIt(t *testing.T) {
+	st := movable()
+	st.Workflows[1].Archived = true
+	wf, err := st.MoveSession(Session{SessionID: "id-1"}, "Q4 Search!", now)
+	if err != nil || wf.Slug != "q4-search" || wf.Archived || st.Workflows[1].Archived {
+		t.Fatalf("MoveSession = %+v, %v; workflows %+v", wf, err, st.Workflows)
+	}
+	if st.Sessions[0].Workflow != "q4-search" {
+		t.Errorf("session in %q", st.Sessions[0].Workflow)
 	}
 }
 

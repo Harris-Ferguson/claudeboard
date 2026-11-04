@@ -226,7 +226,7 @@ func (m Model) panelLines(width, height int) []string {
 			styleFaint.Render(" enter continue · esc cancel")}
 	case modeRename:
 		return []string{" " + styleBold.Render("Rename "+m.pending.Session.Name), "", " " + m.flow.input.View(), "",
-			styleFaint.Render(" enter save · empty goes back to the first prompt · esc cancel")}
+			styleFaint.Render(" enter save · empty = first prompt · esc cancel")}
 	}
 	r, ok := m.selected()
 	if !ok {
