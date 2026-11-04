@@ -248,3 +248,56 @@ func TestComingBackToASessionInAFoldedWorkflowMarksItSeen(t *testing.T) {
 		t.Errorf("seen %d, q4-search unread %d; you just came back from it", m.state.Seen["id-3"], m.rows[3].Stats.Unread)
 	}
 }
+
+func TestUJumpsToTheNextUnreadSession(t *testing.T) {
+	m, _ := unreadModel(t, 100, map[string]int{"id-1": 5, "id-2": 1, "id-3": 1})
+	m.cursor = 0
+	for _, want := range []int{2, 4, 2} { // wraps back round
+		m, _ = press(t, m, "u")
+		if m.cursor != want {
+			t.Fatalf("u went to %d (%s), want %d", m.cursor, m.rows[m.cursor].Name(), want)
+		}
+	}
+}
+
+func TestUWithNothingUnreadSaysSo(t *testing.T) {
+	m, _ := unreadModel(t, 100, map[string]int{"id-1": 5, "id-2": 5, "id-3": 3})
+	m.cursor = 1
+	m, _ = press(t, m, "u")
+	if m.cursor != 1 || m.message != "nothing unread" {
+		t.Errorf("cursor %d, message %q", m.cursor, m.message)
+	}
+}
+
+func TestUUnfoldsAWorkflowToReachItsUnreadSession(t *testing.T) {
+	m, _ := unreadModel(t, 100, map[string]int{"id-1": 5, "id-2": 5, "id-3": 1})
+	m.collapsed["q4-search"] = true
+	m.rebuild()
+	m.cursor = 1
+	m, _ = press(t, m, "u")
+	if r := m.rows[m.cursor]; r.Kind != RowSession || r.Session.Name != "cb-q4-search-1" {
+		t.Errorf("u went to %q, want cb-q4-search-1", r.Name())
+	}
+	if m.collapsed["q4-search"] {
+		t.Error("q4-search is still folded")
+	}
+}
+
+func TestUPassesOverSubagentRows(t *testing.T) {
+	m, _ := unreadModel(t, 100, map[string]int{"id-1": 5, "id-2": 5, "id-3": 1})
+	s := m.snaps["id-1"]
+	s.Agents = []transcript.Agent{{ID: "a1", Description: "look around"}, {ID: "a2", Description: "run tests"}}
+	m.snaps["id-1"] = s
+	m.rebuild()
+	m.cursor = 1
+	m, _ = press(t, m, "u")
+	if r := m.rows[m.cursor]; r.Session.Name != "cb-q4-search-1" {
+		t.Errorf("u went to %q (row %d), want cb-q4-search-1", r.Name(), m.cursor)
+	}
+}
+
+func TestHelpListsU(t *testing.T) {
+	if !strings.Contains(strings.Join(helpLines(), "\n"), "tab / u    next session that needs you / unread") {
+		t.Error("? help doesn't mention u")
+	}
+}

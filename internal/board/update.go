@@ -195,6 +195,8 @@ func (m Model) listKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.move(1)
 	case "tab":
 		m.nextWaiting()
+	case "u":
+		m.nextUnread()
 	case "A":
 		m.showArchived = !m.showArchived
 		m.rebuild()
@@ -223,11 +225,42 @@ func (m *Model) nextWaiting() {
 	for i := 1; i <= n; i++ {
 		j := (m.cursor + i) % n
 		if r := m.rows[j]; (r.Kind == RowSession || r.Kind == RowOther) && r.Status.Kind == status.NeedsYou {
-			m.cursor, m.previewScroll = j, 0
-			m.ensureVisible()
-			m.noteCursor()
+			m.jump(j)
 			return
 		}
 	}
 	m.message = "nothing needs you right now"
+}
+
+// nextUnread moves to the next unread session (after the cursor, wrapping), unfolding
+// its workflow if it's folded.
+func (m *Model) nextUnread() {
+	n := len(m.rows)
+	for i := 1; i <= n; i++ {
+		j := (m.cursor + i) % n
+		r := m.rows[j]
+		if r.Unread {
+			m.jump(j)
+			return
+		}
+		if r.Kind == RowWorkflow && r.Collapsed && r.Stats.Unread > 0 {
+			// Unfolding adds the workflow's sessions right after its row.
+			m.collapsed[r.Workflow.Slug] = false
+			m.rebuild()
+			for k := j + 1; k < len(m.rows); k++ {
+				if m.rows[k].Unread {
+					m.jump(k)
+					return
+				}
+			}
+		}
+	}
+	m.message = "nothing unread"
+}
+
+// jump moves the cursor to row j.
+func (m *Model) jump(j int) {
+	m.cursor, m.previewScroll = j, 0
+	m.ensureVisible()
+	m.noteCursor()
 }
