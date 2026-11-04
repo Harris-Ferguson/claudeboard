@@ -56,6 +56,7 @@ Run `claudeboard`.
 | ↑↓ / j k | move |
 | Enter | open the session; **Ctrl+Z inside it comes back to the board**. On a subagent: open its session. On a workflow, or a session's "✓ N finished" subagents line: fold/unfold |
 | Tab | jump to the next session that needs you |
+| u | jump to the next unread session (`•`), unfolding its workflow if it's folded |
 | n | new session: pick a workflow, then a folder, and Claude opens straight away |
 | N | new session at once, in a new workflow with a random name (like `amber-otter`), in the selected row's folder; asks only about a worktree if that folder is busy |
 | s | quick one-off in the scratch folder, no questions |
@@ -77,11 +78,11 @@ A `•` before a session's label (in bold) means it's **unread**: Claude finishe
 (✓ done or ! needs you) since you last looked. Opening the session counts as looking,
 and so does resting the cursor on it for about a second while the preview shows;
 moving the cursor past it doesn't. A workflow shows `•` when any of its sessions is
-unread, folded or not. Read state is kept in `~/.claudeboard/state.json`. Sessions
-claudeboard starts, from the board or with `claudeboard new`, begin with nothing seen,
-so a result that comes in while the board is closed still shows. Sessions claudeboard
-didn't start (under Other sessions), and ones from before it kept read state, start
-out read the first time the board sees them.
+unread, folded or not, and `u` jumps to the next unread session. Read state is kept
+in `~/.claudeboard/state.json`. Sessions claudeboard starts, from the board or with
+`claudeboard new`, begin with nothing seen, so a result that comes in while the board
+is closed still shows. Sessions claudeboard didn't start (under Other sessions), and
+ones from before it kept read state, start out read the first time the board sees them.
 
 Subagents a session starts are listed under it as a tree, with their tokens:
 
