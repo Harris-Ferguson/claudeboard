@@ -233,18 +233,24 @@ func (m *Model) nextWaiting() {
 }
 
 // nextUnread moves to the next unread session (after the cursor, wrapping), unfolding
-// its workflow if it's folded.
+// its workflow if it's folded. A folded workflow under the cursor counts too, since its
+// sessions come next in the list.
 func (m *Model) nextUnread() {
 	n := len(m.rows)
-	for i := 1; i <= n; i++ {
+	if n == 0 {
+		m.message = "nothing unread"
+		return
+	}
+	for i := 0; i <= n; i++ {
 		j := (m.cursor + i) % n
 		r := m.rows[j]
-		if r.Unread {
+		if i > 0 && r.Unread {
 			m.jump(j)
 			return
 		}
 		if r.Kind == RowWorkflow && r.Collapsed && r.Stats.Unread > 0 {
-			// Unfolding adds the workflow's sessions right after its row.
+			// Unfolding adds the workflow's sessions right after its row, and one of
+			// them is unread, since Stats.Unread counts exactly those.
 			m.collapsed[r.Workflow.Slug] = false
 			m.rebuild()
 			for k := j + 1; k < len(m.rows); k++ {
@@ -253,6 +259,7 @@ func (m *Model) nextUnread() {
 					return
 				}
 			}
+			return // the rows changed, so n and j are stale
 		}
 	}
 	m.message = "nothing unread"

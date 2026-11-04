@@ -283,6 +283,20 @@ func TestUUnfoldsAWorkflowToReachItsUnreadSession(t *testing.T) {
 	}
 }
 
+func TestUOnAFoldedWorkflowUnfoldsIt(t *testing.T) {
+	m, _ := unreadModel(t, 100, map[string]int{"id-1": 5, "id-2": 1, "id-3": 1})
+	m.collapsed["q4-search"] = true
+	m.rebuild()
+	m.cursor = 3 // on q4-search, showing •; cb-payments-v2-2 is unread too
+	m, _ = press(t, m, "u")
+	if r := m.rows[m.cursor]; r.Kind != RowSession || r.Session.Name != "cb-q4-search-1" {
+		t.Errorf("u went to %q, want cb-q4-search-1, which comes next in list order", r.Name())
+	}
+	if m.collapsed["q4-search"] {
+		t.Error("q4-search is still folded")
+	}
+}
+
 func TestUPassesOverSubagentRows(t *testing.T) {
 	m, _ := unreadModel(t, 100, map[string]int{"id-1": 5, "id-2": 5, "id-3": 1})
 	s := m.snaps["id-1"]
