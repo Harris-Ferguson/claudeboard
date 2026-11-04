@@ -58,7 +58,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case applier:
 		return msg.apply(m)
 	}
-	if m.mode == modeNameWorkflow {
+	if m.mode == modeNameWorkflow || m.mode == modeRename {
 		var cmd tea.Cmd
 		m.flow.input, cmd = m.flow.input.Update(msg)
 		return m, cmd

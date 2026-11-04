@@ -17,6 +17,8 @@ func (m Model) commandKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.toggleArchive()
 	case "m":
 		return m.startMove()
+	case "R":
+		return m.startRename()
 	case "n":
 		return m.startNew()
 	case "s":
@@ -34,6 +36,8 @@ func (m Model) flowKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.pickerKey(k)
 	case modeNameWorkflow:
 		return m.nameKey(k)
+	case modeRename:
+		return m.renameKey(k)
 	}
 	mode := m.mode
 	m.mode = modeList

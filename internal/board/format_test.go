@@ -45,11 +45,11 @@ func TestClean(t *testing.T) {
 }
 
 func TestLabels(t *testing.T) {
-	if got := sessionLabel(transcript.Snapshot{FirstPrompt: "  fix the bug\nmore detail"}); got != "fix the bug" {
-		t.Errorf("sessionLabel = %q", got)
+	if got := shortLabel(promptLabel(transcript.Snapshot{FirstPrompt: "  fix the bug\nmore detail"})); got != "fix the bug" {
+		t.Errorf("label = %q", got)
 	}
-	if got := sessionLabel(transcript.Snapshot{}); got != "new session" {
-		t.Errorf("empty sessionLabel = %q", got)
+	if got := shortLabel(promptLabel(transcript.Snapshot{})); got != "new session" {
+		t.Errorf("empty label = %q", got)
 	}
 	if repoLabel("/work/api") != "api" || repoLabel("api") != "api" {
 		t.Error("repoLabel")

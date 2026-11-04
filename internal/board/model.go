@@ -61,6 +61,7 @@ const (
 	modeAskWorktree
 	modeAskTrust
 	modeConfirmDelete
+	modeRename
 )
 
 type choice struct {
@@ -119,7 +120,7 @@ type Model struct {
 
 	mode       mode
 	flow       newFlow
-	pending    Row    // the row a y/N question is about
+	pending    Row    // the row a y/N question, or a rename, is about
 	selectName string // a session to move the cursor to once it appears in the rows
 }
 

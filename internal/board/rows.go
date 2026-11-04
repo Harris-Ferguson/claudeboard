@@ -83,9 +83,21 @@ func (r Row) ShortID() string {
 	return r.Session.ShortID
 }
 
-// Name is how the row's session is referred to in messages.
+// label is what a session row calls the session: the label the user gave it, or else
+// the first line of its first prompt (empty for a session with no prompt yet).
+func (r Row) label() string {
+	if l := firstLine(clean(r.Session.Label)); l != "" {
+		return l
+	}
+	return promptLabel(r.Snap)
+}
+
+// Name is how the row's session is referred to in messages: for a claudeboard session,
+// the label the user gave it, else Claude's name for it.
 func (r Row) Name() string {
 	switch {
+	case r.Kind == RowSession && r.Session.Label != "":
+		return firstLine(clean(r.Session.Label))
 	case r.Kind == RowSession:
 		return r.Session.Name
 	case r.Kind == RowWorkflow:
