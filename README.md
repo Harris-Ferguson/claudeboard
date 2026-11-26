@@ -31,6 +31,18 @@ running when you quit the board.
 
 ## Install
 
+With Homebrew:
+
+```sh
+brew install harris-ferguson/tap/claudeboard
+```
+
+Newer Homebrew won't load a formula from someone else's tap until you trust it. If it
+refuses, run `brew trust --formula harris-ferguson/tap/claudeboard` and install again.
+Update with `brew upgrade claudeboard`.
+
+Or from source:
+
 ```sh
 git clone https://github.com/Harris-Ferguson/claudeboard
 cd claudeboard
@@ -215,3 +227,8 @@ go test ./...                                     # everything, no real Claude n
 go test ./internal/board -update                  # rewrite the reference screens
 go test -tags realclaude -v ./internal/claudecli  # check against your real Claude Code
 ```
+
+To release, tag `main` (`git tag -a v0.2.0 -m "claudeboard 0.2.0" && git push origin v0.2.0`),
+then in [the tap](https://github.com/Harris-Ferguson/homebrew-tap), point
+`Formula/claudeboard.rb`'s `url` at the new tag and set `sha256` to the output of
+`curl -sL <url> | shasum -a 256`.
