@@ -190,9 +190,10 @@ func TestSubagentPreview(t *testing.T) {
 	m.cursor = 2 // "find payment code"
 	plain := ansi.Strip(m.render())
 	for _, want := range []string{
-		"find payment code · subagent of cb-payments-v2-1 · 8.0k tokens",
+		"╭─ find payment code ─",
+		"│ subagent of cb-payments-v2-1 · 8.0k tokens",
 		"Explore · in 0 · out 8.0k",
-		"● working: Grep AfterPay · enter opens cb-payments-v2-1",
+		spinner[0] + " working: Grep AfterPay · enter opens cb-payments-v2-1",
 		"task: Find where payments are handled",
 		"› Grep  AfterPay",
 	} {
@@ -211,7 +212,8 @@ func TestFinishedLinePreviewListsThem(t *testing.T) {
 	m.cursor = 5
 	plain := ansi.Strip(m.render())
 	for _, want := range []string{
-		"cb-payments-v2-1 · 2 finished subagents · 6.0k tokens",
+		"╭─ cb-payments-v2-1's finished subagents ─",
+		"│ 2 finished subagents · 6.0k tokens",
 		"✓ map the checkout",
 		"✓ list the routes",
 		"enter shows them",
@@ -253,7 +255,7 @@ func TestSubagentLabelIsOneCleanLine(t *testing.T) {
 	for _, c := range []struct {
 		cursor int
 		want   string
-	}{{2, "find    payment code · subagent of"}, {5, "✓ map the    checkout · 5.0k tokens"}} {
+	}{{2, "╭─ find    payment code ─"}, {5, "✓ map the    checkout · 5.0k tokens"}} {
 		m.cursor = c.cursor
 		out := m.render()
 		assertBox(t, out, 110, 20)

@@ -90,7 +90,7 @@ func TestRestingOnASessionWithThePreviewMarksItSeen(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("no command to save it")
 	}
-	cmd()
+	runAll(cmd)
 	if st, _, _ := m.deps.Store.Load(); st.Seen["id-3"] != 3 {
 		t.Errorf("saved seen = %v", st.Seen)
 	}
@@ -161,8 +161,12 @@ func TestComingBackFromASessionMarksItSeen(t *testing.T) {
 	s.Activity = 4 // what happened while it was open
 	r.snaps = map[string]transcript.Snapshot{"id-1": r.snaps["id-1"], "id-2": r.snaps["id-2"], "id-3": s, "id-4": r.snaps["id-4"]}
 	m, cmd := send(m, r)
-	if m.rows[4].Unread || m.state.Seen["id-3"] != 4 || cmd == nil {
-		t.Errorf("unread %v, seen %d, cmd %v", m.rows[4].Unread, m.state.Seen["id-3"], cmd)
+	if m.rows[4].Unread || m.state.Seen["id-3"] != 4 {
+		t.Errorf("unread %v, seen %d", m.rows[4].Unread, m.state.Seen["id-3"])
+	}
+	runAll(cmd)
+	if st, _, _ := m.deps.Store.Load(); st.Seen["id-3"] != 4 {
+		t.Errorf("saved seen = %v", st.Seen)
 	}
 }
 
@@ -175,7 +179,7 @@ func TestSessionsFirstSeenStartOutRead(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("no command to save the starting point")
 	}
-	cmd()
+	runAll(cmd)
 	if st, _, _ := m.deps.Store.Load(); st.Seen["id-3"] != 3 {
 		t.Errorf("saved seen = %v", st.Seen)
 	}
@@ -233,7 +237,7 @@ func TestSessionsInFoldedAndArchivedWorkflowsAreTracked(t *testing.T) {
 	if m.rows[3].Kind != RowWorkflow || m.rows[3].Stats.Unread != 1 {
 		t.Errorf("row 3 is %s with %d unread, want q4-search with 1", m.rows[3].Name(), m.rows[3].Stats.Unread)
 	}
-	if out := ansi.Strip(m.render()); !strings.Contains(out, "q4-search  •  [+]") {
+	if out := ansi.Strip(m.render()); !strings.Contains(out, "▸ q4-search  •") {
 		t.Errorf("no • on the folded workflow:\n%s", out)
 	}
 }
@@ -311,7 +315,7 @@ func TestUPassesOverSubagentRows(t *testing.T) {
 }
 
 func TestHelpListsU(t *testing.T) {
-	if !strings.Contains(strings.Join(helpLines(), "\n"), "tab / u    next session that needs you / unread") {
+	if !strings.Contains(ansi.Strip(strings.Join(helpLines(), "\n")), "tab / u    next session that needs you / unread") {
 		t.Error("? help doesn't mention u")
 	}
 }

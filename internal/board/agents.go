@@ -99,9 +99,9 @@ func agentLabel(a transcript.Agent) string {
 
 // agentsFoldedLabel is the finished line's text: "✓ 3 finished", with [+] while folded.
 func agentsFoldedLabel(r Row) string {
-	s := statusIcon(r.Status) + fmt.Sprintf(" %d finished", r.Finished)
+	s := statusIcon(r.Status, 0) + fmt.Sprintf(" %d finished", r.Finished)
 	if r.Collapsed {
-		s += "  [+]"
+		s += "  " + styleMuted.Render("[+]")
 	}
 	return s
 }

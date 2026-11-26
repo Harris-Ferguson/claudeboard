@@ -180,36 +180,40 @@ ide = false           # pass --ide so diffs open in your IDE (untested with back
 ## 7. The board
 
 ```
-┌ claudeboard · 1 working · 1 needs you · 65k tokens ───────────────────────────┐
-│ payments-v2  !             53k │ cb-payments-v2-2 · web · 12k tokens          │
-│   ● api  wire the new Aft… 41k │ in 1.2k · out 8.4k · cache r 2.1k · w 0.3k   │
-│ ▸ ! web  hook PaymentForm… 12k │ ! needs you — permission prompt: Bash npm t… │
-│ q4-search                  12k │                                              │
-│   ✓ api  plan the search…  12k │ you: hook PaymentForm into checkout          │
-│ quick                        0 │   › Edit  CheckoutPage.vue                   │
-│   ○ scratch  new session       │   › Bash  npm test                           │
-│ Other sessions                 │ claude: Wired it in. Running the tests…      │
-│   ● arbybot-8d                 │                                              │
-├────────────────────────────────┴──────────────────────────────────────────────┤
-│ ↑↓ move  enter open  tab next waiting  n new  s quick  ? help  q quit         │
-└───────────────────────────────────────────────────────────────────────────────┘
+ claudeboard   1 working · 1 needs you                                            65k tokens
+╭─ Sessions ─────────────────────────╮╭─ hook PaymentForm into checkout ───────────────────╮
+│ ▾ payments-v2  !                53k││ cb-payments-v2-2 · web · 12k tokens                │
+│   ⠋ api  wire the new AfterPay… 41k││ in 1.2k · out 8.4k · cache r 2.1k · w 2.4k         │
+│▌  ! web  hook PaymentForm into… 12k││ ! needs you — permission prompt: Bash npm test     │
+│ ▾ q4-search                     12k││                                                    │
+│   ✓ api  plan the search rewri… 12k││ you: hook PaymentForm into checkout                │
+│ ▾ quick                            ││   › Edit  CheckoutPage.vue                         │
+│   ○ scratch  new session           ││   › Bash  npm test                                 │
+│ Other sessions                     ││ claude: Wired it in. Running the tests to check    │
+│   ⠋ arbybot-8d  new session        ││   checkout still works.                            │
+│                                    ││                                                    │
+╰────────────────────────────────────╯╰────────────────────────────────────────────────────╯
+ ↑↓ move · enter open (ctrl+z back) · tab next waiting · n new · s quick · ? help · q quit
 ```
 
 (Illustrative layout; exact widths are set during implementation.)
 
-- **Header:** counts by state and the token total, both for claudeboard's own sessions. "Other sessions" are not included. When the last successful status check is more than 5 s old, the header shows `status stale (12s)`.
+- **Look:** the list and the preview are rounded boxes, each titled in its top edge, between a header line and a footer line. A box that asks for something (a picker, a name, the help) is drawn in the accent colour; otherwise borders are dim. claudeboard has its own palette, in a dark and a light version: at start it asks the terminal for its background colour (`tea.RequestBackgroundColor`) and switches to the matching version when the answer comes, staying with the dark one if none does. Text with no colour of its own keeps the terminal's foreground. Bubble Tea turns the colours into the nearest ones the terminal has, and `NO_COLOR` turns them off.
+- **Header:** claudeboard's name as a badge in the accent colour, then counts by state (working, needs you, unread) and, on the right, the token total, all for claudeboard's own sessions. "Other sessions" are not included. When the last successful status check is more than 5 s old, the header shows `status stale (12s)` right after the badge, before the counts, so a narrow screen cuts the counts rather than the warning.
+- **Footer:** key help, each key in bold followed by what it does, or the latest message, or a y/N question.
 - **Left pane:** workflows in creation order, each followed by its sessions, then "Other sessions".
-  - **Workflow rows** show the name, a `!` when any of its sessions needs the user, a `•` when any is unread, and the workflow's token total.
-  - **Session rows** show the status icon, repo, label and tokens. The label is the first line of the label the user gave the session with `R`, or else of its first prompt, cut to ~40 characters, or `new session`.
+  - **Workflow rows** show `▾` (its sessions are listed below it) or `▸` (folded), the name, a `!` when any of its sessions needs the user, a `•` when any is unread, and the workflow's token total.
+  - **Session rows** show the status icon, repo (dimmed), label and tokens. A working session's icon is a spinner, which ticks every 100 ms only while a row on the board is working. The label is the first line of the label the user gave the session with `R`, or else of its first prompt, cut to ~40 characters, or `new session`.
+  - **The selected row** is a bar in the selection colour with a `▌` at its left edge, in the accent colour while the list has the keys and dimmed while a picker, a name prompt or the help is open. The `▌` keeps it findable without colours.
   - **Unread:** a background session is unread when Claude has finished a turn (✓ done or ! needs you) since the user last saw it: its label gets a `•` and is bold, and its workflow row gets a `•`, folded or not. Interactive sessions are never marked.
     - **Seen** is how many of Claude's transcript records the main conversation had when the user last looked (`transcript.Snapshot.Activity`; Claude Code writes one record per content block, and the count starts over if the file is rewritten), kept per session ID in `state.json` (`seen`).
     - **Looking** means coming back from the session with Ctrl+Z, or the cursor resting on it for at least 1 s while the preview is showing. That is checked when a refresh lands, so moving the cursor past a session doesn't count; the wait starts again whenever the selected row changes.
     - **Sessions claudeboard starts** (from the board or `claudeboard new`, or adopted by re-linking) are recorded with nothing seen, so a result that arrives while the board is closed still shows as unread. `claudeboard new` records what the user saw when they come back from the session it opened.
     - **First sight:** any other session the state has no record of (one claudeboard didn't start, or one recorded before read state existed) is recorded as seen when the board first sees it, whether or not its workflow is folded or archived, so existing sessions don't all start out unread.
-  - **Subagent rows** follow their session: the running ones as a tree (`├ ● find payment code`, nested under the subagent that started them), with tokens, then one `└ ✓ N finished  [+]` line. The label is the first line of the description, cleaned like a session's. Enter on that line shows the finished ones under it (and hides them again). A subagent counts as running unless it has ended (section 5), its session isn't running (`Row.Running`), or its last record is older than the session's `startedAt`, since a subagent's work doesn't survive a restart. One with no timestamped record yet has just started, so it counts as running. Sessions without subagents have no extra rows. Subagents don't count in the header or workflow totals (their tokens are already in their session's).
+  - **Subagent rows** follow their session: the running ones as a tree (`├ ⠋ find payment code`, nested under the subagent that started them), with tokens, then one `└ ✓ N finished  [+]` line. The label is the first line of the description, cleaned like a session's. Enter on that line shows the finished ones under it (and hides them again). A subagent counts as running unless it has ended (section 5), its session isn't running (`Row.Running`), or its last record is older than the session's `startedAt`, since a subagent's work doesn't survive a restart. One with no timestamped record yet has just started, so it counts as running. Sessions without subagents have no extra rows. Subagents don't count in the header or workflow totals (their tokens are already in their session's).
   - **Order never changes because of status,** so workflow and session rows don't move under the cursor. Subagent rows do. When the selected subagent's row goes (it finished while the finished line is folded, or its session stopped or restarted), the cursor moves to its session's finished line, or to the session if there is none. It never lands on another session, which Enter would open, `x` would stop and resting on would mark read.
-- **Right pane (preview):** the session name (for a renamed session, its label, then its Claude name), repo (and worktree), token total and breakdown, and subagent count. If the session needs the user, it then shows what it is waiting on, including the pending tool call. Below that are the most recent preview items, following new output. PgUp/PgDn scroll. Prompts and replies are labelled in colour, with wrapped lines indented under the label; replies get light markdown (bold, inline code, headings, bullets, code blocks). Each tool call is one dimmed line (`› Bash  Run the tests`), a run of identical calls is shown once with a count, and the waiting-on line shows the command itself, since that is what a permission prompt asks about.
-- **Subagent preview:** the description, `subagent of <session>`, tokens, type and breakdown, `● working: <pending call>` or `✓ finished`, then its own conversation, which starts with the task its session gave it (labelled `task:` rather than `you:`). The finished line's preview lists the finished subagents with their tokens.
+- **Right pane (preview):** titled with what the session's row shows (the label it was given with `R`, or its first prompt), falling back to its name. Below that, its Claude name (unless the title already is it), repo (and worktree) and token total, then the breakdown and subagent count. If the session needs the user, it then shows what it is waiting on, including the pending tool call. Below that are the most recent preview items, following new output. PgUp/PgDn scroll. Prompts and replies are labelled in colour, with wrapped lines indented under the label; replies get light markdown (bold, inline code, headings, bullets, code blocks). Each tool call is one dimmed line (`› Bash  Run the tests`), a run of identical calls is shown once with a count, and the waiting-on line shows the command itself, since that is what a permission prompt asks about.
+- **Subagent preview:** titled with the description; `subagent of <session>`, tokens, type and breakdown, `⠋ working: <pending call>` (spinning) or `✓ finished`, then its own conversation, which starts with the task its session gave it (labelled `task:` rather than `you:`). The finished line's preview lists the finished subagents with their tokens.
 - **Narrow terminals:** below 90 columns the preview is hidden by default; `p` toggles it.
 - **Token format:** `950`, `41k`, `1.24M`.
 

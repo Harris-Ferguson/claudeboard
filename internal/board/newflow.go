@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/Harris-Ferguson/claudeboard/internal/claudecli"
@@ -111,7 +110,7 @@ func (m Model) pickerKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case c.value != newWorkflowChoice:
 			return m.workflowChosen(c.value)
 		}
-		m.flow.input = textinput.New()
+		m.flow.input = newInput()
 		m.flow.input.Placeholder = "e.g. payments-v2"
 		m.flow.input.SetWidth(30)
 		m.mode = modeNameWorkflow

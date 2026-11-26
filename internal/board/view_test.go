@@ -60,7 +60,8 @@ func TestRenderWide(t *testing.T) {
 	assertBox(t, out, 100, 16)
 	plain := ansi.Strip(out)
 	for _, want := range []string{
-		"claudeboard · 1 working · 1 needs you · 65k tokens",
+		"claudeboard   1 working · 1 needs you",
+		"65k tokens",
 		"cb-payments-v2-2 · web · 12k tokens",
 		"needs you — permission prompt: Bash npm test",
 		"you: hook PaymentForm into checkout",
@@ -99,8 +100,8 @@ func TestRenderHelp(t *testing.T) {
 	out := m.render()
 	assertBox(t, out, 100, 20)
 	for _, line := range strings.Split(ansi.Strip(out), "\n") {
-		if parts := strings.Split(line, "│"); len(parts) == 4 && strings.Contains(parts[2], "…") {
-			t.Errorf("help line cut off: %q", parts[2])
+		if parts := strings.Split(line, "│"); len(parts) == 5 && strings.Contains(parts[3], "…") {
+			t.Errorf("help line cut off: %q", parts[3])
 		}
 	}
 	golden(t, "help", ansi.Strip(out))
@@ -111,6 +112,39 @@ func TestHeaderShowsStaleStatus(t *testing.T) {
 	m.deps.Now = func() time.Time { return testNow.Add(12 * time.Second) }
 	if !strings.Contains(ansi.Strip(m.render()), "status stale (12s)") {
 		t.Error("stale status not shown")
+	}
+}
+
+func TestStaleStatusIsNotCutFromANarrowHeader(t *testing.T) {
+	m, _ := unreadModel(t, 60, map[string]int{"id-1": 1, "id-2": 1, "id-3": 1})
+	m.deps.Now = func() time.Time { return testNow.Add(12 * time.Second) }
+	head := ansi.Strip(strings.Split(m.render(), "\n")[0])
+	if m.counts.Unread != 2 || !strings.Contains(head, "status stale (12s)") {
+		t.Errorf("%d unread, header %q; the warning should come before the counts", m.counts.Unread, head)
+	}
+}
+
+func TestCutBoxTitlesLeaveALineBeforeTheCorner(t *testing.T) {
+	for w := 1; w <= 40; w++ {
+		top := ansi.Strip(box("New session: pick a workflow", nil, w, 1, true)[0])
+		if ansi.StringWidth(top) != w+2 || !strings.HasSuffix(top, "─╮") {
+			t.Errorf("width %d: %q", w, top)
+		}
+	}
+}
+
+func TestPreviewDoesNotRepeatItsTitle(t *testing.T) {
+	m, _ := testModel(t, 100, 16)
+	for row, want := range map[int][2]string{
+		6: {"cb-quick-1", "scratch · 0 tokens"}, // no label or prompt yet
+		8: {"arbybot-8d", "running in another terminal · 0 tokens"},
+	} {
+		m.cursor = row
+		lines := strings.Split(ansi.Strip(m.render()), "\n")
+		top, first := lines[1], strings.TrimSpace(strings.Split(lines[2], "│")[3])
+		if !strings.Contains(top, "╭─ "+want[0]+" ") || first != want[1] {
+			t.Errorf("title %q, first line %q; want %s and %q", top, first, want[0], want[1])
+		}
 	}
 }
 

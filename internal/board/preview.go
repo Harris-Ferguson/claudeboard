@@ -12,13 +12,6 @@ import (
 	"github.com/Harris-Ferguson/claudeboard/internal/transcript"
 )
 
-var (
-	styleYou    = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true)
-	styleClaude = lipgloss.NewStyle().Foreground(lipgloss.Color("5")).Bold(true)
-	styleTool   = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
-	styleCode   = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
-)
-
 // indent starts every preview line after an item's first, so the "you:" and "claude:"
 // labels stand out.
 const indent = "   "
@@ -64,13 +57,13 @@ func toolLine(it transcript.Item, repeat, width int) string {
 		return truncate(lead+it.Tool, width)
 	}
 	name := truncate(it.Tool, room)
-	line := indent + styleFaint.Render("›") + " " + styleTool.Render(name)
+	line := indent + styleSubtle.Render("›") + " " + styleTool.Render(name)
 	if left := room - ansi.StringWidth(name) - 2; left > 0 {
 		if detail := firstLine(clean(it.Text)); detail != "" {
-			line += "  " + styleFaint.Render(truncate(detail, left))
+			line += "  " + styleMuted.Render(truncate(detail, left))
 		}
 	}
-	return line + styleFaint.Render(suffix)
+	return line + styleMuted.Render(suffix)
 }
 
 // itemLines draws a prompt or a reply: its label, then the text wrapped to width under
@@ -104,7 +97,7 @@ func itemLines(it transcript.Item, width int, you string) []string {
 		case inCode:
 			pad := strings.Repeat(" ", len(line)-len(strings.TrimLeft(line, " ")))
 			first, rest = first+pad, rest+pad
-			spans = []span{{text: line, style: &styleFaint}}
+			spans = []span{{text: line, style: &styleMuted}}
 		case heading.MatchString(trimmed):
 			spans = inlineSpans(heading.FindStringSubmatch(trimmed)[1], &styleBold)
 		case m != nil:
@@ -120,7 +113,7 @@ func itemLines(it transcript.Item, width int, you string) []string {
 		out = []string{label}
 	}
 	if len(out) > maxItemLines {
-		out = append(out[:maxItemLines-1], indent+styleFaint.Render("…"))
+		out = append(out[:maxItemLines-1], indent+styleMuted.Render("…"))
 	}
 	return out
 }

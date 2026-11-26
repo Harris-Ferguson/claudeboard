@@ -3,7 +3,6 @@ package board
 import (
 	"strings"
 
-	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/Harris-Ferguson/claudeboard/internal/store"
@@ -44,7 +43,7 @@ func (m Model) startRename() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.pending, m.mode = r, modeRename
-	m.flow.input = textinput.New()
+	m.flow.input = newInput()
 	m.flow.input.SetValue(r.label())
 	m.flow.input.SetWidth(40)
 	cmd := m.flow.input.Focus()
