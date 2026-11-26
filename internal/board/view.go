@@ -82,15 +82,15 @@ func at(lines []string, i int) string {
 }
 
 // box frames lines in a rounded border, w cells wide and h lines high inside, with
-// title set into the top edge. A box asking for something (a picker, a name, the
-// help) is in the accent colour.
+// title set into the top edge, cut to leave at least one ─ before the corner. A box
+// asking for something (a picker, a name, the help) is in the accent colour.
 func box(title string, lines []string, w, h int, active bool) []string {
 	edge, head := styleSubtle, styleMuted.Bold(true)
 	if active {
 		edge, head = styleAccent.UnsetBold(), styleAccent
 	}
 	top := edge.Render("╭" + strings.Repeat("─", w) + "╮")
-	if title = truncate(clean(title), w-3); title != "" {
+	if title = truncate(clean(title), w-4); title != "" {
 		top = edge.Render("╭─ ") + head.Render(title) + " " + edge.Render(strings.Repeat("─", w-3-ansi.StringWidth(title))+"╮")
 	}
 	out := make([]string, 0, h+2)
@@ -103,9 +103,19 @@ func box(title string, lines []string, w, h int, active bool) []string {
 }
 
 // header is the top line: claudeboard's name, what needs attention, and the tokens.
+// A warning that the status is stale or unavailable comes first, so a narrow screen
+// cuts the counts rather than the warning.
 func (m Model) header(w int) string {
 	left := styleBadge.Render("claudeboard")
 	var parts []string
+	switch {
+	case m.lastOK.IsZero() && m.listErr != nil:
+		parts = append(parts, styleNeeds.Render("status unavailable"))
+	case !m.lastOK.IsZero():
+		if age := m.deps.Now().Sub(m.lastOK); age > staleAfter {
+			parts = append(parts, styleNeeds.Render(fmt.Sprintf("status stale (%ds)", int(age.Seconds()))))
+		}
+	}
 	if m.counts.Working > 0 {
 		parts = append(parts, styleWorking.Render(fmt.Sprintf("%d working", m.counts.Working)))
 	}
@@ -114,14 +124,6 @@ func (m Model) header(w int) string {
 	}
 	if m.counts.Unread > 0 {
 		parts = append(parts, styleUnread.Render(fmt.Sprintf("%d unread", m.counts.Unread)))
-	}
-	switch {
-	case m.lastOK.IsZero() && m.listErr != nil:
-		parts = append(parts, styleNeeds.Render("status unavailable"))
-	case !m.lastOK.IsZero():
-		if age := m.deps.Now().Sub(m.lastOK); age > staleAfter {
-			parts = append(parts, styleNeeds.Render(fmt.Sprintf("status stale (%ds)", int(age.Seconds()))))
-		}
 	}
 	if len(parts) > 0 {
 		left += "  " + strings.Join(parts, styleMuted.Render(" · "))
@@ -256,11 +258,15 @@ func (m Model) panelTitle() string {
 	case modeRename:
 		return "Rename " + m.pending.Session.Name
 	}
-	r, ok := m.selected()
-	switch {
-	case !ok:
-		return ""
-	case r.Kind == RowSession || r.Kind == RowOther:
+	if r, ok := m.selected(); ok {
+		return previewTitle(r)
+	}
+	return ""
+}
+
+// previewTitle is the title of r's preview: a session's label, else the row's name.
+func previewTitle(r Row) string {
+	if r.Kind == RowSession || r.Kind == RowOther {
 		if l := r.label(); l != "" {
 			return l
 		}
@@ -335,19 +341,27 @@ func (m Model) previewLines(r Row, width, height int) []string {
 	case RowAgentsFolded:
 		return finishedAgentLines(r)
 	}
-	var where string
+	// The first line starts with the session's name, unless the title already is it
+	// (a session with no label or prompt yet).
+	var where []string
+	name := r.Name()
+	if r.Kind == RowSession {
+		name = r.Session.Name
+	}
+	if name != previewTitle(r) {
+		where = append(where, name)
+	}
 	switch {
 	case r.Kind == RowSession:
-		where = r.Session.Name + " · " + repoLabel(r.Session.Repo)
+		folder := repoLabel(r.Session.Repo)
 		if r.Session.Worktree != "" {
-			where += " (worktree " + r.Session.Worktree + ")"
+			folder += " (worktree " + r.Session.Worktree + ")"
 		}
+		where = append(where, folder)
 	case r.Interactive():
-		where = r.Name() + " · running in another terminal"
-	default:
-		where = r.Name()
+		where = append(where, "running in another terminal")
 	}
-	where += " · " + formatTokens(r.Tokens) + " tokens"
+	where = append(where, formatTokens(r.Tokens)+" tokens")
 	usage := usageText(r.Snap.Usage)
 	if n := len(r.Snap.Agents); n > 0 {
 		usage += " · " + plural(n, "subagent")
@@ -359,7 +373,7 @@ func (m Model) previewLines(r Row, width, height int) []string {
 	if r.Kind == RowOther {
 		state += styleMuted.Render(" · m moves it into a workflow")
 	}
-	head := []string{styleMuted.Render(" " + where), styleMuted.Render(" " + usage), state, ""}
+	head := []string{styleMuted.Render(" " + strings.Join(where, " · ")), styleMuted.Render(" " + usage), state, ""}
 
 	var body []string
 	if !r.Snap.Found {
