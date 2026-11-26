@@ -35,9 +35,10 @@ func tick() tea.Cmd {
 	return tea.Tick(refreshEvery, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
-// Init starts the refresh cycle straight away.
+// Init starts the refresh cycle straight away, and asks the terminal for its
+// background colour so the board can pick colours to match.
 func (m Model) Init() tea.Cmd {
-	return func() tea.Msg { return tickMsg(time.Now()) }
+	return tea.Batch(func() tea.Msg { return tickMsg(time.Now()) }, tea.RequestBackgroundColor)
 }
 
 // Update implements tea.Model.
@@ -55,6 +56,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+	case tea.BackgroundColorMsg:
+		useTheme(msg.IsDark())
+		if m.mode == modeNameWorkflow || m.mode == modeRename {
+			m.flow.input.SetStyles(inputStyles())
+		}
+		return m, nil
+	case spinMsg:
+		m.spinning = false
+		m.frame++
+		return m, m.startSpinner()
 	case applier:
 		return msg.apply(m)
 	}
@@ -166,7 +177,7 @@ func (m *Model) applyRefresh(msg refreshedMsg) tea.Cmd {
 	m.rebuild()
 	cmd := m.noteSeen(m.seenAfterAttach)
 	m.seenAfterAttach = ""
-	return cmd
+	return tea.Batch(cmd, m.startSpinner())
 }
 
 func (m Model) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {

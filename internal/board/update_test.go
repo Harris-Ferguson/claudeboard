@@ -37,6 +37,18 @@ func key(s string) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: []rune(s)[0], Text: s}
 }
 
+// runAll runs cmd and, if it's a batch, every command in it.
+func runAll(cmd tea.Cmd) {
+	if cmd == nil {
+		return
+	}
+	if batch, ok := cmd().(tea.BatchMsg); ok {
+		for _, c := range batch {
+			runAll(c)
+		}
+	}
+}
+
 func send(m Model, msg tea.Msg) (Model, tea.Cmd) {
 	next, cmd := m.Update(msg)
 	return next.(Model), cmd

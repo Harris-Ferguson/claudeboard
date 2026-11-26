@@ -8,19 +8,20 @@ It's built on Claude Code's background sessions (`claude --bg`), so sessions kee
 running when you quit the board.
 
 ```
-┌ claudeboard · 1 working · 1 needs you · 65k tokens ───────────────────────────┐
-│ payments-v2  !             53k │ cb-payments-v2-2 · web · 12k tokens          │
-│   ● api  wire the new Aft… 41k │ in 1.2k · out 8.4k · cache r 2.1k · w 300    │
-│ ▸ ! web  hook PaymentForm… 12k │ ! needs you — permission prompt: Bash npm t… │
-│ q4-search                  12k │                                              │
-│   ✓ api  plan the search…  12k │ you: hook PaymentForm into checkout          │
-│ quick                          │   › Edit  CheckoutPage.vue                   │
-│   ○ scratch  new session       │   › Bash  npm test                           │
-│ Other sessions                 │ claude: Wired it in. Running the tests…      │
-│   ● arbybot-8d                 │                                              │
-├────────────────────────────────┴──────────────────────────────────────────────┤
-│ ↑↓ move  enter open  tab next waiting  n new  s quick  ? help  q quit         │
-└───────────────────────────────────────────────────────────────────────────────┘
+ claudeboard   1 working · 1 needs you                                            65k tokens
+╭─ Sessions ─────────────────────────╮╭─ hook PaymentForm into checkout ───────────────────╮
+│ ▾ payments-v2  !                53k││ cb-payments-v2-2 · web · 12k tokens                │
+│   ⠋ api  wire the new AfterPay… 41k││ in 1.2k · out 8.4k · cache r 2.1k · w 2.4k         │
+│▌  ! web  hook PaymentForm into… 12k││ ! needs you — permission prompt: Bash npm test     │
+│ ▾ q4-search                     12k││                                                    │
+│   ✓ api  plan the search rewri… 12k││ you: hook PaymentForm into checkout                │
+│ ▾ quick                            ││   › Edit  CheckoutPage.vue                         │
+│   ○ scratch  new session           ││   › Bash  npm test                                 │
+│ Other sessions                     ││ claude: Wired it in. Running the tests to check    │
+│   ⠋ arbybot-8d  new session        ││   checkout still works.                            │
+│                                    ││                                                    │
+╰────────────────────────────────────╯╰────────────────────────────────────────────────────╯
+ ↑↓ move · enter open (ctrl+z back) · tab next waiting · n new · s quick · ? help · q quit
 ```
 
 ## Requirements
@@ -84,8 +85,14 @@ Run `claudeboard`.
 | ? | help |
 | q | quit; sessions keep running |
 
-Statuses: `●` working, `!` needs you (with what it's waiting for), `✓` done (your turn),
-`○` new (no prompt yet), `◌` stopped.
+Statuses: a spinner (`⠋`) working, `!` needs you (with what it's waiting for), `✓` done
+(your turn), `○` new (no prompt yet), `◌` stopped. A workflow shows `▾` when its
+sessions are listed under it and `▸` when they're folded away.
+
+claudeboard has its own colours, in a light and a dark version. When it starts it asks
+your terminal for its background colour and uses the version that matches, or the dark
+one if the terminal doesn't answer. Terminals without 24-bit colour get the nearest
+colours they have, and `NO_COLOR` turns colours off (the selected row keeps its `▌`).
 
 A `•` before a session's label (in bold) means it's **unread**: Claude finished a turn
 (✓ done or ! needs you) since you last looked. Opening the session counts as looking,
@@ -100,10 +107,11 @@ ones from before it kept read state, start out read the first time the board see
 Subagents a session starts are listed under it as a tree, with their tokens:
 
 ```
-│   ● api  wire the new Aft… 41k │
-│   ├ ● find payment code    8.0k│
-│   │ └ ● look at the tests  2.0k│
-│   └ ✓ 4 finished  [+]      21k │
+│   ⠋ api  wire the new AfterPay… 41k
+│   ├ ⠋ find payment code        8.0k
+│   │ └ ⠋ look at the tests      2.0k
+│   ├ ⠋ review the diff          3.0k
+│   └ ✓ 2 finished  [+]          6.0k
 ```
 
 Running ones are listed one by one; finished ones fold into one line, and Enter on it

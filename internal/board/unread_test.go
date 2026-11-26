@@ -175,7 +175,7 @@ func TestSessionsFirstSeenStartOutRead(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("no command to save the starting point")
 	}
-	cmd()
+	runAll(cmd)
 	if st, _, _ := m.deps.Store.Load(); st.Seen["id-3"] != 3 {
 		t.Errorf("saved seen = %v", st.Seen)
 	}
@@ -233,7 +233,7 @@ func TestSessionsInFoldedAndArchivedWorkflowsAreTracked(t *testing.T) {
 	if m.rows[3].Kind != RowWorkflow || m.rows[3].Stats.Unread != 1 {
 		t.Errorf("row 3 is %s with %d unread, want q4-search with 1", m.rows[3].Name(), m.rows[3].Stats.Unread)
 	}
-	if out := ansi.Strip(m.render()); !strings.Contains(out, "q4-search  •  [+]") {
+	if out := ansi.Strip(m.render()); !strings.Contains(out, "▸ q4-search  •") {
 		t.Errorf("no • on the folded workflow:\n%s", out)
 	}
 }
@@ -311,7 +311,7 @@ func TestUPassesOverSubagentRows(t *testing.T) {
 }
 
 func TestHelpListsU(t *testing.T) {
-	if !strings.Contains(strings.Join(helpLines(), "\n"), "tab / u    next session that needs you / unread") {
+	if !strings.Contains(ansi.Strip(strings.Join(helpLines(), "\n")), "tab / u    next session that needs you / unread") {
 		t.Error("? help doesn't mention u")
 	}
 }

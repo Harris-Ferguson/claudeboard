@@ -60,7 +60,8 @@ func TestRenderWide(t *testing.T) {
 	assertBox(t, out, 100, 16)
 	plain := ansi.Strip(out)
 	for _, want := range []string{
-		"claudeboard · 1 working · 1 needs you · 65k tokens",
+		"claudeboard   1 working · 1 needs you",
+		"65k tokens",
 		"cb-payments-v2-2 · web · 12k tokens",
 		"needs you — permission prompt: Bash npm test",
 		"you: hook PaymentForm into checkout",
@@ -99,8 +100,8 @@ func TestRenderHelp(t *testing.T) {
 	out := m.render()
 	assertBox(t, out, 100, 20)
 	for _, line := range strings.Split(ansi.Strip(out), "\n") {
-		if parts := strings.Split(line, "│"); len(parts) == 4 && strings.Contains(parts[2], "…") {
-			t.Errorf("help line cut off: %q", parts[2])
+		if parts := strings.Split(line, "│"); len(parts) == 5 && strings.Contains(parts[3], "…") {
+			t.Errorf("help line cut off: %q", parts[3])
 		}
 	}
 	golden(t, "help", ansi.Strip(out))

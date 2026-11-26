@@ -56,8 +56,8 @@ func TestRenameShowsTheLabelInPlaceOfTheFirstPrompt(t *testing.T) {
 	if !strings.Contains(out, "! web  checkout UI") {
 		t.Errorf("row should show the label:\n%s", out)
 	}
-	if !strings.Contains(out, "checkout UI · cb-payments-v2-2 · web") {
-		t.Errorf("preview title should show the label, then Claude's name for it:\n%s", out)
+	if !strings.Contains(out, "╭─ checkout UI ─") || !strings.Contains(out, "│ cb-payments-v2-2 · web") {
+		t.Errorf("the preview should be titled with the label, then give Claude's name for it:\n%s", out)
 	}
 	if r, _ := m.selected(); r.Name() != "checkout UI" {
 		t.Errorf("Name() = %q; messages should use the label", r.Name())

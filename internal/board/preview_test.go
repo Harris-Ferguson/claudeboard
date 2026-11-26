@@ -35,7 +35,7 @@ func TestReplyMarkdownIsStyled(t *testing.T) {
 	}
 	raw := strings.Join(lines, "\n")
 	for _, s := range []string{styleClaude.Render("claude:"), styleBold.Render("Done."), styleCode.Render("go"),
-		styleCode.Render("test"), styleBold.Render("Next"), styleFaint.Render("return")} {
+		styleCode.Render("test"), styleBold.Render("Next"), styleMuted.Render("return")} {
 		if !strings.Contains(raw, s) {
 			t.Errorf("reply is missing the styled %q", ansi.Strip(s))
 		}

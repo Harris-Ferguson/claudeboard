@@ -122,6 +122,9 @@ type Model struct {
 	flow       newFlow
 	pending    Row    // the row a y/N question, or a rename, is about
 	selectName string // a session to move the cursor to once it appears in the rows
+
+	frame    int  // the spinner frame working sessions show
+	spinning bool // a spinMsg is on its way
 }
 
 // New returns a board. warning, if not empty, is shown in the footer until the first
